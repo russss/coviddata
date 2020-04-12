@@ -42,6 +42,9 @@ We can filter this data by country, and convert it to a [pandas](https://pandas.
 
 
 ```python
+import matplotlib
+matplotlib.rcParams['figure.figsize'] = [14, 6]
+
 (world_cases.sel(location="United States")
      .to_dataframe()
      .plot(logy=True, title="US COVID-19 Cases & Deaths"))
@@ -50,7 +53,7 @@ We can filter this data by country, and convert it to a [pandas](https://pandas.
 
 
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x1230e5c10>
+    <matplotlib.axes._subplots.AxesSubplot at 0x12a0522d0>
 
 
 
@@ -70,6 +73,24 @@ import coviddata.uk
 uk_cases = coviddata.uk.cases_phe()
 uk_cases
 ```
+
+
+
+
+<pre>&lt;xarray.Dataset&gt;
+Dimensions:   (date: 73, location: 1)
+Coordinates:
+  * location  (location) &lt;U14 &#x27;United Kingdom&#x27;
+  * date      (date) datetime64[ns] 2020-01-31 2020-02-01 ... 2020-04-12
+Data variables:
+    cases     (location, date) int64 2 2 2 2 2 ... 60733 65077 70272 74895 79345
+    deaths    (location, date) float64 nan nan nan ... 9.875e+03 1.061e+04
+Attributes:
+    date:        2020-04-12
+    source:      Public Health England
+    source_url:  https://www.arcgis.com/sharing/rest/content/items/e5fd11150d...</pre>
+
+
 
 
 ```python
@@ -139,7 +160,7 @@ Attributes:
 
 
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x1238a3410>
+    <matplotlib.axes._subplots.AxesSubplot at 0x12a15f050>
 
 
 
@@ -155,7 +176,8 @@ These functions are dependent on screen-scraping the NHS website and may be more
 
 
 ```python
-coviddata.uk.triage_nhs_pathways()
+nhs_pathways = coviddata.uk.triage_nhs_pathways()
+nhs_pathways
 ```
 
 
@@ -171,13 +193,18 @@ Coordinates:
   * sex        (sex) object &#x27;Female&#x27; &#x27;Male&#x27; &#x27;Unknown&#x27;
     ccg_name   (date, age_band, ccg, site_type, sex) object &#x27;NHS Airedale, Wharfedale and Craven CCG&#x27; ... nan
 Data variables:
-    count      (date, age_band, ccg, site_type, sex) float64 8.0 6.0 ... nan nan</pre>
+    count      (date, age_band, ccg, site_type, sex) float64 8.0 6.0 ... nan nan
+Attributes:
+    date:        2020-04-08
+    source:      NHS England
+    source_url:  https://files.digital.nhs.uk/41/581BEE/NHS%20Pathways%20Covi...</pre>
 
 
 
 
 ```python
-coviddata.uk.triage_nhs_online()
+nhs_online = coviddata.uk.triage_nhs_online()
+nhs_online
 ```
 
 
@@ -192,6 +219,37 @@ Coordinates:
   * sex       (sex) object &#x27;Female&#x27; &#x27;Male&#x27;
     ccg_name  (date, age_band, ccg, sex) object &#x27;NHS Airedale, Wharfedale and Craven CCG&#x27; ... &#x27;NHS West Sussex CCG&#x27;
 Data variables:
-    count     (date, age_band, ccg, sex) float64 17.0 16.0 27.0 ... 6.0 7.0 12.0</pre>
+    count     (date, age_band, ccg, sex) float64 17.0 16.0 27.0 ... 6.0 7.0 12.0
+Attributes:
+    date:        2020-04-08
+    source:      NHS England
+    source_url:  https://files.digital.nhs.uk/BB/32CB5C/111%20Online%20Covid-...</pre>
 
+
+
+
+```python
+import matplotlib.pyplot as plt
+ax = plt.axes()
+(nhs_pathways.sum(['age_band', 'ccg', 'sex', 'site_type'])
+     .to_dataframe()
+     .plot(ax=ax, label='Pathways', y='count'))
+
+(nhs_online.sum(['age_band', 'ccg', 'sex'])
+     .to_dataframe()
+     .plot(ax=ax, label='Online', y='count'))
+
+plt.title("NHS COVID-19 Triage Rate")
+plt.ylim(0)
+```
+
+
+
+
+    (0.0, 153673.3)
+
+
+
+
+![png](README_files/README_13_1.png)
 
