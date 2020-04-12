@@ -4,6 +4,11 @@ Yet another python package for accessing COVID-19 data. Sorry. I have opinions a
 
 This package provides methods for fetching various COVID-19 related data sources. Results are provided as [xarray](http://xarray.pydata.org/) datasets, with consistent variable naming and attribution data included.
 
+## Installation
+
+I'm not going to clutter PyPI up with yet another COVID package. Just do `pip install git+https://github.com/russs/coviddata#egg=coviddata`.
+
+
 ## Worldwide Data
 
 My preferred wordwide data source is [Our World in Data](https://ourworldindata.org/coronavirus-source-data) which sources their data from the ECDC. The `cases_owid` function downloads this data and returns a Dataset.
@@ -37,13 +42,15 @@ We can filter this data by country, and convert it to a [pandas](https://pandas.
 
 
 ```python
-world_cases.sel(location="United States").to_dataframe().plot(logy=True, title="US COVID-19 Cases & Deaths")
+(world_cases.sel(location="United States")
+     .to_dataframe()
+     .plot(logy=True, title="US COVID-19 Cases & Deaths"))
 ```
 
 
 
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x11fd3e150>
+    <matplotlib.axes._subplots.AxesSubplot at 0x1230e5c10>
 
 
 
@@ -63,24 +70,6 @@ import coviddata.uk
 uk_cases = coviddata.uk.cases_phe()
 uk_cases
 ```
-
-
-
-
-<pre>&lt;xarray.Dataset&gt;
-Dimensions:   (date: 73, location: 1)
-Coordinates:
-  * location  (location) &lt;U14 &#x27;United Kingdom&#x27;
-  * date      (date) datetime64[ns] 2020-01-31 2020-02-01 ... 2020-04-12
-Data variables:
-    cases     (location, date) int64 2 2 2 2 2 ... 60733 65077 70272 74895 79345
-    deaths    (location, date) float64 nan nan nan ... 9.875e+03 1.061e+04
-Attributes:
-    date:        2020-04-12
-    source:      Public Health England
-    source_url:  https://www.arcgis.com/sharing/rest/content/items/e5fd11150d...</pre>
-
-
 
 
 ```python
@@ -150,7 +139,7 @@ Attributes:
 
 
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x122f904d0>
+    <matplotlib.axes._subplots.AxesSubplot at 0x1238a3410>
 
 
 

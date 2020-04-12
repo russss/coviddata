@@ -57,6 +57,9 @@ def triage_nhs_pathways():
     )
 
     data = xr.Dataset.from_dataframe(df).set_coords(["ccg_name"])
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "NHS England"
+    data.attrs["source_url"] = url
     return data
 
 
@@ -76,4 +79,8 @@ def triage_nhs_online():
         .set_index(["date", "age_band", "ccg", "sex"])
     )
 
-    return xr.Dataset.from_dataframe(df).set_coords(["ccg_name"])
+    data = xr.Dataset.from_dataframe(df).set_coords(["ccg_name"])
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "NHS England"
+    data.attrs["source_url"] = url
+    return data
