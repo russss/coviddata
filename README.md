@@ -160,7 +160,7 @@ Attributes:
 
 
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x12a15f050>
+    <matplotlib.axes._subplots.AxesSubplot at 0x12bd8da10>
 
 
 
@@ -241,15 +241,38 @@ ax = plt.axes()
 
 plt.title("NHS COVID-19 Triage Rate")
 plt.ylim(0)
+plt.show()
+```
+
+
+![png](README_files/README_13_0.png)
+
+
+## Interventions
+
+List of interventions used the Imperial College London model, in a reasonably simple format:
+
+
+```python
+import coviddata.interventions
+
+coviddata.interventions.imperial_interventions()
 ```
 
 
 
 
-    (0.0, 153673.3)
+<pre>&lt;xarray.Dataset&gt;
+Dimensions:   (location: 83)
+Coordinates:
+  * location  (location) object &#x27;Austria&#x27; &#x27;Austria&#x27; ... &#x27;Netherlands&#x27;
+    date      (location) datetime64[ns] 2020-03-14 2020-03-10 ... 2020-03-12
+Data variables:
+    type      (location) object &#x27;Schools + Universities&#x27; ... &#x27;Advice to work from home&#x27;
+    event     (location) object &#x27;Nationwide school closures.&#x27; ... nan
+Attributes:
+    date:        2020-04-13 22:38:33.196859
+    source:      Imperial College London
+    source_url:  https://raw.githubusercontent.com/ImperialCollegeLondon/covi...</pre>
 
-
-
-
-![png](README_files/README_13_1.png)
 
