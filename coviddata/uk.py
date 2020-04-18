@@ -1,28 +1,56 @@
+from collections import defaultdict
+from xml.etree import ElementTree
 from lxml.html import html5parser
+from dateutil.parser import parse as parse_date
 import requests
 import pandas as pd
 import xarray as xr
 from .util import max_date
 
 
-def cases_phe():
-    url = "https://www.arcgis.com/sharing/rest/content/items/e5fd11150d274bebaaf8fe2a7a2bda11/data"
-    uk_data = (
-        pd.read_excel(url, parse_dates=[0],)
-        .rename(columns={"DateVal": "date", "CumCases": "cases", "CumDeaths": "deaths"})
-        .drop(columns=["CMODateCount", "DailyDeaths"])
-        .set_index("date")
-        .sort_index()
-    )
+def cases_phe(by="countries"):
+    index_url = "https://publicdashacc.blob.core.windows.net/publicdata?restype=container&comp=list"
+    blob_root = "https://c19pub.azureedge.net/"
 
-    data = xr.Dataset.from_dataframe(uk_data).expand_dims(
-        {"location": ["United Kingdom"]}
-    )
-    data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
-    data.attrs["source_url"] = url
+    xml = ElementTree.fromstring(requests.get(index_url).text)
 
-    return data
+    blobs = []
+
+    for blob in xml.iter("Blob"):
+        name = blob.find("Name").text
+        if name.startswith("data_"):
+            blobs.append(name)
+
+    # Sort lexicographically, hopefully they don't do something even more stupid and break this.
+    data_filename = sorted(blobs)[-1]
+    data = requests.get(blob_root + data_filename).json()
+
+    series = []
+    for gss, area_data in data[by].items():
+        name = area_data["name"]["value"]
+        converted = defaultdict(dict)
+        if "dailyTotalConfirmedCases" in area_data:
+            for val in area_data["dailyTotalConfirmedCases"]:
+                converted[val["date"]]["cases"] = val["value"]
+
+        if "dailyTotalDeaths" in area_data:
+            for val in area_data["dailyTotalDeaths"]:
+                converted[val["date"]]["deaths"] = val["value"]
+
+        for date, value in converted.items():
+            row = {"date": parse_date(date), "location": name, "gss_code": gss}
+            if "cases" in value:
+                row["cases"] = value["cases"]
+            if "deaths" in value:
+                row["deaths"] = value["deaths"]
+            series.append(row)
+    df = pd.DataFrame(series).set_index(["location", "date"])
+    xdata = xr.Dataset.from_dataframe(df).set_coords(["gss_code"])
+    xdata.attrs["date"] = max_date(xdata)
+    xdata.attrs["source"] = "Public Health England"
+    xdata.attrs["source_url"] = blob_root + data_filename
+
+    return xdata
 
 
 def _get_nhs_potential(title):
