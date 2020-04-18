@@ -6,7 +6,7 @@ from .util import max_date
 def cases_ecdc():
     url = "https://opendata.ecdc.europa.eu/covid19/casedistribution/csv"
     data = (
-        pd.read_csv(url, parse_dates=[0])
+        pd.read_csv(url, parse_dates=[0], dayfirst=True)
         .drop(["day", "month", "year", "popData2018", "geoId"], axis=1)
         .rename(
             {
@@ -19,9 +19,14 @@ def cases_ecdc():
     )
 
     data["location"] = data["location"].apply(lambda name: name.replace("_", " "))
-    data = xr.Dataset.from_dataframe(data.set_index(["location", "date"])).set_coords(
+    data = data.set_index(["location", "date"]).sort_index()
+    data = xr.Dataset.from_dataframe(data).set_coords(
         ["iso3"]
     )
+
+    # Make numbers cumulative to match other datasets
+    data['deaths'] = data['deaths'].cumsum(dim='date')
+    data['cases'] = data['cases'].cumsum(dim='date')
 
     return data
 
