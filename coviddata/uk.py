@@ -20,9 +20,14 @@ def cases_phe(by="countries"):
             continue
         name = area_data["name"]["value"]
         converted = defaultdict(dict)
+
         if "dailyTotalConfirmedCases" in area_data:
             for val in area_data["dailyTotalConfirmedCases"]:
                 converted[val["date"]]["cases"] = val["value"]
+
+        if "changeInDailyCasesAdjusted" in area_data:
+            for val in area_data["changeInDailyCasesAdjusted"]:
+                converted[val["date"]]["new_cases"] = val["value"]
 
         if "dailyTotalDeaths" in area_data:
             for val in area_data["dailyTotalDeaths"]:
@@ -32,6 +37,8 @@ def cases_phe(by="countries"):
             row = {"date": parse_date(date), "location": name, "gss_code": gss}
             if "cases" in value:
                 row["cases"] = value["cases"]
+            if "new_cases" in value:
+                row["new_cases"] = value["new_cases"]
             if "deaths" in value:
                 row["deaths"] = value["deaths"]
             series.append(row)
