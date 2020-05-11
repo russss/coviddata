@@ -1,5 +1,4 @@
 from collections import defaultdict
-from xml.etree import ElementTree
 from lxml.html import html5parser
 from dateutil.parser import parse as parse_date
 import requests
@@ -9,24 +8,16 @@ from .util import max_date
 
 
 def cases_phe(by="countries"):
-    index_url = "https://publicdashacc.blob.core.windows.net/publicdata?restype=container&comp=list"
-    blob_root = "https://c19pub.azureedge.net/"
+    url = f"https://c19downloads.azureedge.net/downloads/data/{by}_latest.json"
 
-    xml = ElementTree.fromstring(requests.get(index_url).text)
-
-    blobs = []
-
-    for blob in xml.iter("Blob"):
-        name = blob.find("Name").text
-        if name.startswith("data_"):
-            blobs.append(name)
-
-    # Sort lexicographically, hopefully they don't do something even more stupid and break this.
-    data_filename = sorted(blobs)[-1]
-    data = requests.get(blob_root + data_filename).json()
+    res = requests.get(url)
+    res.raise_for_status()
+    data = res.json()
 
     series = []
-    for gss, area_data in data[by].items():
+    for gss, area_data in data.items():
+        if gss == 'metadata':
+            continue
         name = area_data["name"]["value"]
         converted = defaultdict(dict)
         if "dailyTotalConfirmedCases" in area_data:
@@ -48,7 +39,7 @@ def cases_phe(by="countries"):
     xdata = xr.Dataset.from_dataframe(df).set_coords(["gss_code"])
     xdata.attrs["date"] = max_date(xdata)
     xdata.attrs["source"] = "Public Health England"
-    xdata.attrs["source_url"] = blob_root + data_filename
+    xdata.attrs["source_url"] = url
 
     return xdata
 

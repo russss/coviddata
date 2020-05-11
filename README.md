@@ -6,7 +6,7 @@ This package provides methods for fetching various COVID-19 related data sources
 
 ## Installation
 
-I'm not going to clutter PyPI up with yet another COVID package. Just do `pip install git+https://github.com/russss/coviddata#egg=coviddata`.
+I'm not going to clutter PyPI up with yet another COVID package. Just do `pip install git+https://github.com/russs/coviddata#egg=coviddata`.
 
 
 ## Worldwide Data
@@ -24,15 +24,15 @@ world_cases
 
 
 <pre>&lt;xarray.Dataset&gt;
-Dimensions:   (date: 104, location: 207)
+Dimensions:   (date: 133, location: 210)
 Coordinates:
   * location  (location) object &#x27;Afghanistan&#x27; &#x27;Albania&#x27; ... &#x27;Zambia&#x27; &#x27;Zimbabwe&#x27;
-  * date      (date) datetime64[ns] 2019-12-31 2020-01-01 ... 2020-04-12
+  * date      (date) datetime64[ns] 2019-12-31 2020-01-01 ... 2020-05-11
 Data variables:
-    cases     (location, date) float64 0.0 0.0 0.0 0.0 ... 11.0 11.0 11.0 14.0
-    deaths    (location, date) float64 0.0 0.0 0.0 0.0 0.0 ... 2.0 3.0 3.0 3.0
+    cases     (location, date) float64 0.0 0.0 0.0 0.0 ... 34.0 35.0 36.0 36.0
+    deaths    (location, date) float64 0.0 0.0 0.0 0.0 0.0 ... 4.0 4.0 4.0 4.0
 Attributes:
-    date:        2020-04-12
+    date:        2020-05-11
     source_url:  https://cowid.netlify.com/data/ecdc/full_data.csv
     source:      ECDC (Our World in Data)</pre>
 
@@ -47,25 +47,23 @@ matplotlib.rcParams['figure.figsize'] = [14, 6]
 
 (world_cases.sel(location="United States")
      .to_dataframe()
-     .plot(logy=True, title="US COVID-19 Cases & Deaths"))
+     .plot(logy=True, title="US COVID-19 Cases & Deaths"));
 ```
 
 
-
-
-    <matplotlib.axes._subplots.AxesSubplot at 0x12a0522d0>
-
-
-
-
-![png](README_files/README_3_1.png)
+![png](README_files/README_3_0.png)
 
 
 ## Country-specific Data
 
 Some country-specific data sources are more reliable or complete.
 
-UK data can be fetched from [Public Health England](https://www.gov.uk/government/publications/covid-19-track-coronavirus-cases), and US data from the [Covid Tracking Project](https://covidtracking.com/):
+### UK Cases Data
+
+UK data can be fetched from [Public Health England](https://www.gov.uk/government/publications/covid-19-track-coronavirus-cases). Note that:
+
+* This data is broken down by constituent UK country whereas global data is usually combined.
+* The cases data is a subset of total UK cases - [more info](https://coronavirus.data.gov.uk/about)
 
 
 ```python
@@ -78,19 +76,24 @@ uk_cases
 
 
 <pre>&lt;xarray.Dataset&gt;
-Dimensions:   (date: 73, location: 1)
+Dimensions:   (date: 92, location: 4)
 Coordinates:
-  * location  (location) &lt;U14 &#x27;United Kingdom&#x27;
-  * date      (date) datetime64[ns] 2020-01-31 2020-02-01 ... 2020-04-12
+  * location  (location) object &#x27;England&#x27; &#x27;Northern Ireland&#x27; &#x27;Scotland&#x27; &#x27;Wales&#x27;
+  * date      (date) datetime64[ns] 2020-01-30 2020-01-31 ... 2020-05-10
+    gss_code  (location, date) object &#x27;E92000001&#x27; &#x27;E92000001&#x27; ... &#x27;W92000004&#x27;
 Data variables:
-    cases     (location, date) int64 2 2 2 2 2 ... 60733 65077 70272 74895 79345
-    deaths    (location, date) float64 nan nan nan ... 9.875e+03 1.061e+04
+    cases     (location, date) float64 1.0 2.0 8.0 9.0 12.0 ... nan nan nan nan
+    deaths    (location, date) float64 nan nan nan ... 1.099e+03 1.111e+03
 Attributes:
-    date:        2020-04-12
+    date:        2020-05-10
     source:      Public Health England
-    source_url:  https://www.arcgis.com/sharing/rest/content/items/e5fd11150d...</pre>
+    source_url:  https://c19downloads.azureedge.net/downloads/data/countries_...</pre>
 
 
+
+### US Data
+
+US data from the [Covid Tracking Project](https://covidtracking.com/):
 
 
 ```python
@@ -103,16 +106,16 @@ us_cases
 
 
 <pre>&lt;xarray.Dataset&gt;
-Dimensions:   (date: 44, location: 1)
+Dimensions:   (date: 110, location: 1)
 Coordinates:
   * location  (location) &lt;U13 &#x27;United States&#x27;
-  * date      (date) datetime64[ns] 2020-02-28 2020-02-29 ... 2020-04-11
+  * date      (date) datetime64[ns] 2020-01-22 2020-01-23 ... 2020-05-10
 Data variables:
-    cases     (location, date) int64 9 18 31 35 ... 424289 458635 493252 522843
-    deaths    (location, date) int64 4 5 8 11 14 ... 14547 16424 18488 20355
-    tests     (location, date) int64 9 18 31 35 ... 2375355 2529282 2665666
+    cases     (location, date) int64 1 1 1 1 ... 1248137 1275916 1301095 1322807
+    deaths    (location, date) float64 nan nan nan ... 7.329e+04 7.427e+04
+    tests     (location, date) int64 1 1 1 1 ... 8105513 8408788 8709630 8987524
 Attributes:
-    date:        2020-04-11
+    date:        2020-05-10
     source:      COVID Tracking Project
     source_url:  http://covidtracking.com/api/us/daily.csv</pre>
 
@@ -126,7 +129,7 @@ There's also a function to allow you quickly to combine these sources together:
 ```python
 from coviddata import merge
 
-combined_cases = merge(world_cases, uk_cases, us_cases)
+combined_cases = merge(world_cases, us_cases)
 combined_cases
 ```
 
@@ -134,18 +137,18 @@ combined_cases
 
 
 <pre>&lt;xarray.Dataset&gt;
-Dimensions:   (date: 104, location: 207)
+Dimensions:   (date: 133, location: 210)
 Coordinates:
-  * date      (date) datetime64[ns] 2019-12-31 2020-01-01 ... 2020-04-12
+  * date      (date) datetime64[ns] 2019-12-31 2020-01-01 ... 2020-05-11
   * location  (location) object &#x27;Afghanistan&#x27; &#x27;Albania&#x27; ... &#x27;Zambia&#x27; &#x27;Zimbabwe&#x27;
 Data variables:
-    cases     (location, date) float64 0.0 0.0 0.0 0.0 ... 11.0 11.0 11.0 14.0
-    deaths    (location, date) float64 0.0 0.0 0.0 0.0 0.0 ... 2.0 3.0 3.0 3.0
+    cases     (location, date) float64 0.0 0.0 0.0 0.0 ... 34.0 35.0 36.0 36.0
+    deaths    (location, date) float64 0.0 0.0 0.0 0.0 0.0 ... 4.0 4.0 4.0 4.0
     tests     (location, date) float64 nan nan nan nan nan ... nan nan nan nan
 Attributes:
-    source:      [&#x27;ECDC (Our World in Data)&#x27;, &#x27;Public Health England&#x27;, &#x27;COVID...
-    source_url:  [&#x27;https://cowid.netlify.com/data/ecdc/full_data.csv&#x27;, &#x27;https...
-    date:        [datetime.date(2020, 4, 12), datetime.date(2020, 4, 12), dat...</pre>
+    source:      [&#x27;ECDC (Our World in Data)&#x27;, &#x27;COVID Tracking Project&#x27;]
+    source_url:  [&#x27;https://cowid.netlify.com/data/ecdc/full_data.csv&#x27;, &#x27;http:...
+    date:        [datetime.date(2020, 5, 11), datetime.date(2020, 5, 10)]</pre>
 
 
 
@@ -160,12 +163,12 @@ Attributes:
 
 
 
-    <matplotlib.axes._subplots.AxesSubplot at 0x12bd8da10>
+    <matplotlib.axes._subplots.AxesSubplot at 0x12c2c6c10>
 
 
 
 
-![png](README_files/README_9_1.png)
+![png](README_files/README_10_1.png)
 
 
 ## UK NHS Triage Data
@@ -184,9 +187,9 @@ nhs_pathways
 
 
 <pre>&lt;xarray.Dataset&gt;
-Dimensions:    (age_band: 3, ccg: 229, date: 22, sex: 3, site_type: 2)
+Dimensions:    (age_band: 3, ccg: 236, date: 54, sex: 3, site_type: 2)
 Coordinates:
-  * date       (date) datetime64[ns] 2020-03-18 2020-03-19 ... 2020-04-08
+  * date       (date) datetime64[ns] 2020-03-18 2020-03-19 ... 2020-05-10
   * age_band   (age_band) object &#x27;0-18 years&#x27; &#x27;19-69 years&#x27; &#x27;70-120 years&#x27;
   * ccg        (ccg) object &#x27;E38000001&#x27; &#x27;E38000002&#x27; ... &#x27;ZC030&#x27; &#x27;ZC040&#x27;
   * site_type  (site_type) int64 111 999
@@ -195,9 +198,9 @@ Coordinates:
 Data variables:
     count      (date, age_band, ccg, site_type, sex) float64 8.0 6.0 ... nan nan
 Attributes:
-    date:        2020-04-08
+    date:        2020-05-10
     source:      NHS England
-    source_url:  https://files.digital.nhs.uk/41/581BEE/NHS%20Pathways%20Covi...</pre>
+    source_url:  https://files.digital.nhs.uk/5F/C91A7A/NHS%20Pathways%20Covi...</pre>
 
 
 
@@ -211,19 +214,19 @@ nhs_online
 
 
 <pre>&lt;xarray.Dataset&gt;
-Dimensions:   (age_band: 3, ccg: 209, date: 22, sex: 2)
+Dimensions:   (age_band: 3, ccg: 209, date: 54, sex: 2)
 Coordinates:
-  * date      (date) datetime64[ns] 2020-03-18 2020-03-19 ... 2020-04-08
+  * date      (date) datetime64[ns] 2020-03-18 2020-03-19 ... 2020-05-10
   * age_band  (age_band) object &#x27;0-18 years&#x27; &#x27;19-69 years&#x27; &#x27;70+ years&#x27;
   * ccg       (ccg) object &#x27;E38000001&#x27; &#x27;E38000002&#x27; ... &#x27;E38000247&#x27; &#x27;E38000248&#x27;
   * sex       (sex) object &#x27;Female&#x27; &#x27;Male&#x27;
     ccg_name  (date, age_band, ccg, sex) object &#x27;NHS Airedale, Wharfedale and Craven CCG&#x27; ... &#x27;NHS West Sussex CCG&#x27;
 Data variables:
-    count     (date, age_band, ccg, sex) float64 17.0 16.0 27.0 ... 6.0 7.0 12.0
+    count     (date, age_band, ccg, sex) float64 17.0 16.0 27.0 ... 2.0 3.0 4.0
 Attributes:
-    date:        2020-04-08
+    date:        2020-05-10
     source:      NHS England
-    source_url:  https://files.digital.nhs.uk/BB/32CB5C/111%20Online%20Covid-...</pre>
+    source_url:  https://files.digital.nhs.uk/DA/564752/111%20Online%20Covid-...</pre>
 
 
 
@@ -245,12 +248,12 @@ plt.show()
 ```
 
 
-![png](README_files/README_13_0.png)
+![png](README_files/README_14_0.png)
 
 
 ## Interventions
 
-List of interventions used the Imperial College London model, in a reasonably simple format:
+List of interventions used by the Imperial College London model, in a reasonably simple format:
 
 
 ```python
@@ -271,7 +274,7 @@ Data variables:
     type      (location) object &#x27;Schools + Universities&#x27; ... &#x27;Advice to work from home&#x27;
     event     (location) object &#x27;Nationwide school closures.&#x27; ... nan
 Attributes:
-    date:        2020-04-13 22:38:33.196859
+    date:        2020-05-11 11:50:10.373939
     source:      Imperial College London
     source_url:  https://raw.githubusercontent.com/ImperialCollegeLondon/covi...</pre>
 
