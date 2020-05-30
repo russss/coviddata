@@ -10,4 +10,4 @@ I'm not going to clutter PyPI up with yet another COVID package. Just do `pip in
 
 ## Usage
 
-Check out the [Jupyter notebook](README.ipynb).
+Check out the [Jupyter notebook](https://nbviewer.jupyter.org/github/russss/coviddata/blob/master/README.ipynb).
