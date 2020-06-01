@@ -1,7 +1,10 @@
 from collections import defaultdict
 from lxml.html import html5parser
 from dateutil.parser import parse as parse_date
+from urllib.error import HTTPError
+from datetime import date, timedelta
 import requests
+import numpy as np
 import pandas as pd
 import xarray as xr
 from .util import max_date
@@ -16,7 +19,7 @@ def cases_phe(by="countries"):
 
     series = []
     for gss, area_data in data.items():
-        if gss == 'metadata':
+        if gss == "metadata":
             continue
         name = area_data["name"]["value"]
         converted = defaultdict(dict)
@@ -33,8 +36,8 @@ def cases_phe(by="countries"):
             for val in area_data["dailyTotalDeaths"]:
                 converted[val["date"]]["deaths"] = val["value"]
 
-        for date, value in converted.items():
-            row = {"date": parse_date(date), "location": name, "gss_code": gss}
+        for d, value in converted.items():
+            row = {"date": parse_date(d), "location": name, "gss_code": gss}
             if "cases" in value:
                 row["cases"] = value["cases"]
             if "new_cases" in value:
@@ -109,4 +112,51 @@ def triage_nhs_online():
     data.attrs["date"] = max_date(data)
     data.attrs["source"] = "NHS England"
     data.attrs["source_url"] = url
+    return data
+
+
+def deaths_nhs():
+    def col_sel(name):
+        if type(name) == str and "Unnamed" in name:
+            return False
+        return True
+
+    today = date.today()
+
+    i = 0
+    while True:
+        url = (
+            f"https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/"
+            f"{today.year}/{today.month:02}/COVID-19-total-announced-deaths-{today.strftime('%d-%b-%Y')}.xlsx"
+        )
+        try:
+            data = pd.read_excel(
+                url,
+                sheet_name="Tab1 Deaths by region",
+                skiprows=15,
+                usecols=col_sel,
+                index_col=0,
+            )
+            break
+        except HTTPError:
+            if i == 4:
+                raise
+            today -= timedelta(days=1)
+            i += 1
+
+    data = pd.DataFrame(
+        data.drop([np.nan, "England"])
+        .drop(columns=["Up to 01-Mar-20", "Awaiting verification", "Total"])
+        .unstack()
+    ).reset_index()
+
+    data = data.rename(
+        columns={0: "deaths", "level_0": "date", "NHS England Region": "location"}
+    ).set_index(["date", "location"])
+
+    data = xr.Dataset.from_dataframe(data)
+    data.attrs['date'] = today
+    data.attrs['source'] = 'NHS England'
+    data.attrs['source_url'] = url
+
     return data
