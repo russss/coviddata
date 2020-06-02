@@ -127,7 +127,7 @@ def deaths_nhs():
     while True:
         url = (
             f"https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/"
-            f"{today.year}/{today.month:02}/COVID-19-total-announced-deaths-{today.strftime('%d-%b-%Y')}.xlsx"
+            f"{today.year}/{today.month:02}/COVID-19-total-announced-deaths-{today.day}-{today.strftime('%B-%Y')}.xlsx"
         )
         try:
             data = pd.read_excel(
