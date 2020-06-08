@@ -11,6 +11,11 @@ from .util import max_date
 
 
 def cases_phe(by="countries"):
+    """ Cases and deaths data from Public Health England.
+        This is the data used by coronavirus.data.gov.uk.
+
+        The `by` variable can be "countries", "regions", "utlas", or "ltlas".
+    """
     url = f"https://c19downloads.azureedge.net/downloads/data/{by}_latest.json"
 
     res = requests.get(url)
@@ -144,19 +149,28 @@ def deaths_nhs():
             today -= timedelta(days=1)
             i += 1
 
-    data = pd.DataFrame(
-        data.drop([np.nan, "England"])
-        .drop(columns=["Up to 01-Mar-20", "Awaiting verification", "Total"])
-        .unstack()
-    ).reset_index()
+    data = (
+        pd.DataFrame(
+            data.drop([np.nan, "England"])
+            .drop(columns=["Up to 01-Mar-20", "Awaiting verification", "Total"])
+            .unstack()
+        )
+        .reset_index()
+        .rename(
+            {
+                "East Of England": "East of England",
+                "North East And Yorkshire": "North East and Yorkshire",
+            }
+        )
+    )
 
     data = data.rename(
         columns={0: "deaths", "level_0": "date", "NHS England Region": "location"}
     ).set_index(["date", "location"])
 
     data = xr.Dataset.from_dataframe(data)
-    data.attrs['date'] = today
-    data.attrs['source'] = 'NHS England'
-    data.attrs['source_url'] = url
+    data.attrs["date"] = today
+    data.attrs["source"] = "NHS England"
+    data.attrs["source_url"] = url
 
     return data
