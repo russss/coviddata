@@ -20,13 +20,11 @@ def cases_ecdc():
 
     data["location"] = data["location"].apply(lambda name: name.replace("_", " "))
     data = data.set_index(["location", "date"]).sort_index()
-    data = xr.Dataset.from_dataframe(data).set_coords(
-        ["iso3"]
-    )
+    data = xr.Dataset.from_dataframe(data).set_coords(["iso3"])
 
     # Make numbers cumulative to match other datasets
-    data['deaths'] = data['deaths'].cumsum(dim='date')
-    data['cases'] = data['cases'].cumsum(dim='date')
+    data["deaths"] = data["deaths"].cumsum(dim="date")
+    data["cases"] = data["cases"].cumsum(dim="date")
 
     return data
 
@@ -44,5 +42,26 @@ def cases_owid():
     data.attrs["date"] = max_date(data)
     data.attrs["source_url"] = url
     data.attrs["source"] = "ECDC (Our World in Data)"
+
+    return data
+
+
+def excess_deaths_ft():
+    """ Excess deaths from the FT.
+
+        Note this is returned as a dataframe not an xarray, because it's slow and inefficient to
+        turn into a dense xarray and sparse xarrays are not well supported.
+    """
+    url = (
+        "https://raw.githubusercontent.com/Financial-Times/coronavirus-excess-mortality-data"
+        "/master/data/ft_excess_deaths.csv"
+    )
+    data = pd.read_csv(
+        url, index_col=["country", "region", "period", "date"], parse_dates=["date"]
+    ).drop(columns=["year", "month", "week"]).sort_index()
+    # data = xr.Dataset.from_dataframe(data)
+    # data.attrs["date"] = max_date(data)
+    # data.attrs["source_url"] = url
+    # data.attrs["source"] = "Financial Times"
 
     return data
