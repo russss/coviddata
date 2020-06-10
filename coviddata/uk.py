@@ -132,7 +132,8 @@ def deaths_nhs():
     while True:
         url = (
             f"https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/"
-            f"{today.year}/{today.month:02}/COVID-19-total-announced-deaths-{today.day}-{today.strftime('%B-%Y')}.xlsx"
+            f"{today.year}/{today.month:02}/"
+            f"COVID-19-total-announced-deaths-{today.day}-{today.strftime('%B-%Y')}.xlsx"
         )
         try:
             data = pd.read_excel(
@@ -171,4 +172,72 @@ def deaths_nhs():
     data.attrs["source"] = "NHS England"
     data.attrs["source_url"] = url
 
+    return data
+
+
+def _latest_press_conference_data():
+    """ Fetch the URL for the latest government press conference Excel dataset.
+
+        This is a complete shitshow made only fractionally less ridiculous by the gov.uk content API.
+    """
+    index_url = (
+        "https://www.gov.uk/api/content/government/collections"
+        "/slides-and-datasets-to-accompany-coronavirus-press-conferences"
+    )
+
+    res = requests.get(index_url)
+    res.raise_for_status()
+    index_data = res.json()
+
+    docs = sorted(
+        [
+            doc
+            for doc in index_data["links"]["documents"]
+            if doc["title"].startswith("Slides and datasets")
+        ],
+        key=lambda doc: doc["public_updated_at"],
+    )
+
+    res = requests.get(docs[-1]["api_url"])
+    res.raise_for_status()
+    doc_data = res.json()
+
+    spreadsheets = [
+        att
+        for att in doc_data["details"]["attachments"]
+        if att["content_type"]
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ]
+
+    if len(spreadsheets) != 1:
+        raise ValueError(f"No spreadsheet found in {docs[-1]['api_url']}")
+
+    return (
+        spreadsheets[0]["url"],
+        "https://www.gov.uk" + doc_data["base_path"],
+        parse_date(doc_data["public_updated_at"]),
+    )
+
+
+def people_in_hospital():
+    url, source, publish_date = _latest_press_conference_data()
+    data = pd.read_excel(
+        url, sheet_name="People in Hospital (UK)", parse_date=["Date"], skiprows=4,
+    )
+
+    data = (
+        data[~data.Date.str.startswith("(").fillna(False)]
+        .set_index("Date")
+        .unstack()
+        .to_frame()
+        .rename(columns={0: "patients"})
+    )
+    data.index.names = ["location", "date"]
+
+    data = data.rename({"North East & Yorkshire": "North East and Yorkshire"})
+
+    data = xr.Dataset.from_dataframe(data)
+    data.attrs["date"] = publish_date
+    data.attrs['source'] = 'UK Government Press Conference'
+    data.attrs['source_url'] = source
     return data
