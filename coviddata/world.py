@@ -26,6 +26,9 @@ def cases_ecdc():
     data["deaths"] = data["deaths"].cumsum(dim="date")
     data["cases"] = data["cases"].cumsum(dim="date")
 
+    data.attrs["date"] = max_date(data)
+    data.attrs["source_url"] = url
+    data.attrs["source"] = "ECDC"
     return data
 
 
@@ -56,9 +59,13 @@ def excess_deaths_ft():
         "https://raw.githubusercontent.com/Financial-Times/coronavirus-excess-mortality-data"
         "/master/data/ft_excess_deaths.csv"
     )
-    data = pd.read_csv(
-        url, index_col=["country", "region", "period", "date"], parse_dates=["date"]
-    ).drop(columns=["year", "month", "week"]).sort_index()
+    data = (
+        pd.read_csv(
+            url, index_col=["country", "region", "period", "date"], parse_dates=["date"]
+        )
+        .drop(columns=["year", "month", "week"])
+        .sort_index()
+    )
     # data = xr.Dataset.from_dataframe(data)
     # data.attrs["date"] = max_date(data)
     # data.attrs["source_url"] = url
