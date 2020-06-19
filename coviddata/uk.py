@@ -10,11 +10,14 @@ import xarray as xr
 from .util import max_date
 
 
-def cases_phe(by="countries"):
+def cases_phe(by="countries", key="name"):
     """ Cases and deaths data from Public Health England.
         This is the data used by coronavirus.data.gov.uk.
 
         The `by` variable can be "countries", "regions", "utlas", or "ltlas".
+
+        The "key" variable can be "name" if you want the data broken down by
+        location name, or "gss_code" for GSS code.
     """
     url = f"https://c19downloads.azureedge.net/downloads/data/{by}_latest.json"
 
@@ -50,8 +53,12 @@ def cases_phe(by="countries"):
             if "deaths" in value:
                 row["deaths"] = value["deaths"]
             series.append(row)
-    df = pd.DataFrame(series).set_index(["location", "date"])
-    xdata = xr.Dataset.from_dataframe(df).set_coords(["gss_code"])
+    df = pd.DataFrame(series)
+    if key == "name":
+        df = df.set_index(["location", "date"]).drop(columns=["gss_code"])
+    elif key == "gss_code":
+        df = df.set_index(["gss_code", "date"]).drop(columns=["location"])
+    xdata = xr.Dataset.from_dataframe(df)
     xdata.attrs["date"] = max_date(xdata)
     xdata.attrs["source"] = "Public Health England"
     xdata.attrs["source_url"] = url
