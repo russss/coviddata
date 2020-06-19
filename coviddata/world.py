@@ -7,7 +7,7 @@ def cases_ecdc():
     url = "https://opendata.ecdc.europa.eu/covid19/casedistribution/csv"
     data = (
         pd.read_csv(url, parse_dates=[0], dayfirst=True)
-        .drop(["day", "month", "year", "popData2018", "geoId"], axis=1)
+        .drop(["day", "month", "year", "popData2019", "geoId"], axis=1)
         .rename(
             {
                 "countriesAndTerritories": "location",
