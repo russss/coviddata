@@ -32,7 +32,7 @@ def cases(key="location"):
         .reset_index()
         .rename(columns={"level_0": "date", 0: "cases"})
         .astype({"date": "datetime64[ns]", "cases": "float64"})
-        .set_index(["date", key])
+        .set_index([key, "date"])
     )
     data = xr.Dataset.from_dataframe(data)
     data.attrs[
