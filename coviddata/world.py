@@ -3,11 +3,15 @@ import xarray as xr
 from .util import max_date
 
 
-def cases_ecdc():
+def cases_ecdc(by="name"):
+    """ Reported cases and deaths from the European Centre for Disease Control.
+
+        The "by" parameter can be "name" for country name or "iso3" for 3-digit ISO code.
+    """
     url = "https://opendata.ecdc.europa.eu/covid19/casedistribution/csv"
     data = (
         pd.read_csv(url, parse_dates=[0], dayfirst=True)
-        .drop(["day", "month", "year", "popData2019", "geoId"], axis=1)
+        .drop(["day", "month", "year", "popData2019", "geoId", "continentExp"], axis=1)
         .rename(
             {
                 "countriesAndTerritories": "location",
@@ -19,8 +23,18 @@ def cases_ecdc():
     )
 
     data["location"] = data["location"].apply(lambda name: name.replace("_", " "))
-    data = data.set_index(["location", "date"]).sort_index()
-    data = xr.Dataset.from_dataframe(data).set_coords(["iso3"])
+
+    if by == "name":
+        data = data.set_index(["location", "date"]).drop(columns=["iso3"])
+    elif by == "iso3":
+        data = data.set_index(["iso3", "date"]).drop(columns=["location"])
+
+    data = data.sort_index()
+
+    # Remove duplicates, because I've seen them occur
+    data = data.loc[~data.index.duplicated(keep="first")]
+
+    data = xr.Dataset.from_dataframe(data)
 
     # Make numbers cumulative to match other datasets
     data["deaths"] = data["deaths"].cumsum(dim="date")
