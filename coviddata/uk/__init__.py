@@ -7,7 +7,7 @@ import requests
 import numpy as np
 import pandas as pd
 import xarray as xr
-from .util import max_date
+from ..util import max_date
 
 
 def cases_phe(by="countries", key="name"):
