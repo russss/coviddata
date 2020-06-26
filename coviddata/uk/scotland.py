@@ -1,6 +1,7 @@
 from datetime import date
-import pandas as pd
 import xarray as xr
+
+from ..util import read_csv
 
 
 def cases(key="location"):
@@ -10,7 +11,7 @@ def cases(key="location"):
     """
     url = "https://statistics.gov.scot/slice/observations.csv?&dataset=http%3A%2F%2Fstatistics.gov.scot%2Fdata%2Fcoronavirus-covid-19-management-information&http%3A%2F%2Fpurl.org%2Flinked-data%2Fcube%23measureType=http%3A%2F%2Fstatistics.gov.scot%2Fdef%2Fmeasure-properties%2Fcount&http%3A%2F%2Fstatistics.gov.scot%2Fdef%2Fdimension%2Fvariable=http%3A%2F%2Fstatistics.gov.scot%2Fdef%2Fconcept%2Fvariable%2Ftesting-cumulative-people-tested-for-covid-19-positive"
     data = (
-        pd.read_csv(url, skiprows=7)
+        read_csv(url, skiprows=7)
         .rename(
             columns={
                 "Reference Area": "location",

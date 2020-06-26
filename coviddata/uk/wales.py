@@ -1,6 +1,5 @@
-import pandas as pd
 import xarray as xr
-from ..util import max_date
+from ..util import max_date, read_excel
 
 gss_lookup = {
     "Isle of Anglesey": "W06000001",
@@ -37,7 +36,7 @@ def cases(key="location"):
         "77fdb9a33544aee88025855100300cab/$FILE/Rapid%20COVID-19%20surveillance%20data.xlsx"
     )
     data = (
-        pd.read_excel(url, sheet_name="Tests by specimen date")
+        read_excel(url, sheet_name="Tests by specimen date")
         .drop(
             columns=[
                 "Cases (new)",
