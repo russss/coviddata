@@ -6,7 +6,7 @@ This package provides methods for fetching various COVID-19 related data sources
 
 ## Installation
 
-I'm not going to clutter PyPI up with yet another COVID package. Just do `pip install git+https://github.com/russs/coviddata#egg=coviddata`.
+I'm not going to clutter PyPI up with yet another COVID package. Just do `pip install git+https://github.com/russss/coviddata#egg=coviddata`.
 
 ## Usage
 
