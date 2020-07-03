@@ -1,7 +1,7 @@
 from datetime import date
 import xarray as xr
 
-from ..util import read_csv
+from ..util import read_csv, max_date
 
 
 def cases(key="location"):
@@ -40,5 +40,5 @@ def cases(key="location"):
         "source_url"
     ] = "https://statistics.gov.scot/resource?uri=http%3A%2F%2Fstatistics.gov.scot%2Fdata%2Fcoronavirus-covid-19-management-information"
     data.attrs["source"] = "Scottish Government"
-    data.attrs["date"] = date.today()
+    data.attrs["date"] = max_date(data)
     return data
