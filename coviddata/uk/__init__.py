@@ -140,8 +140,11 @@ def deaths_nhs():
         url = (
             f"https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/"
             f"{today.year}/{today.month:02}/"
-            f"COVID-19-total-announced-deaths-{today.day}-{today.strftime('%B-%Y')}.xlsx"
+            f"COVID-19-total-announced-deaths-{today.day}-{today.strftime('%b-%Y')}.xlsx"
         )
+        if today == date(2020, 7, 4):
+            url = url.replace('.xlsx', '-1.xlsx')
+
         try:
             data = pd.read_excel(
                 url,
