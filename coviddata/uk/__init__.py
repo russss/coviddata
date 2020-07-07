@@ -2,8 +2,10 @@ from collections import defaultdict
 from lxml.html import html5parser
 from dateutil.parser import parse as parse_date
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from datetime import date, timedelta
 import requests
+import json
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -143,7 +145,7 @@ def deaths_nhs():
             f"COVID-19-total-announced-deaths-{today.day}-{today.strftime('%b-%Y')}.xlsx"
         )
         if today == date(2020, 7, 4):
-            url = url.replace('.xlsx', '-1.xlsx')
+            url = url.replace(".xlsx", "-1.xlsx")
 
         try:
             data = pd.read_excel(
@@ -185,69 +187,40 @@ def deaths_nhs():
     return data
 
 
-def _latest_press_conference_data():
-    """ Fetch the URL for the latest government press conference Excel dataset.
+def hospitalisations_phe(key="name"):
+    if key == "name":
+        loc_field = "areaName"
+        loc_name = "location"
+    elif key == "gss":
+        loc_field = "areaCode"
+        loc_name = "gss_code"
 
-        This is a complete shitshow made only fractionally less ridiculous by the gov.uk content API.
-    """
-    index_url = (
-        "https://www.gov.uk/api/content/government/collections"
-        "/slides-and-datasets-to-accompany-coronavirus-press-conferences"
-    )
-
-    res = requests.get(index_url)
-    res.raise_for_status()
-    index_data = res.json()
-
-    docs = sorted(
-        [
-            doc
-            for doc in index_data["links"]["documents"]
-            if doc["title"].startswith("Slides and datasets")
-        ],
-        key=lambda doc: doc["public_updated_at"],
-    )
-
-    res = requests.get(docs[-1]["api_url"])
-    res.raise_for_status()
-    doc_data = res.json()
-
-    spreadsheets = [
-        att
-        for att in doc_data["details"]["attachments"]
-        if att["content_type"]
-        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    ]
-
-    if len(spreadsheets) != 1:
-        raise ValueError(f"No spreadsheet found in {docs[-1]['api_url']}")
-
-    return (
-        spreadsheets[0]["url"],
-        "https://www.gov.uk" + doc_data["base_path"],
-        parse_date(doc_data["public_updated_at"]),
-    )
-
-
-def people_in_hospital():
-    url, source, publish_date = _latest_press_conference_data()
-    data = pd.read_excel(
-        url, sheet_name="People in Hospital (UK)", parse_date=["Date"], skiprows=4,
+    url = phe_query(
+        filters={"areaType": "nhsregion"}, fields=[loc_field, "date", "cumAdmissions"],
     )
 
     data = (
-        data[~data.Date.str.startswith("(").fillna(False)]
-        .set_index("Date")
-        .unstack()
-        .to_frame()
-        .rename(columns={0: "patients"})
+        pd.read_csv(url, parse_dates=["date"])
+        .rename(columns={loc_field: loc_name,
+                         'cumAdmissions': 'admissions'})
+        .set_index([loc_name, "date"])
     )
-    data.index.names = ["location", "date"]
-
-    data = data.rename({"North East & Yorkshire": "North East and Yorkshire"})
-
     data = xr.Dataset.from_dataframe(data)
-    data.attrs["date"] = publish_date
-    data.attrs['source'] = 'UK Government Press Conference'
-    data.attrs['source_url'] = source
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "Public Health England"
+    data.attrs["source_url"] = url
     return data
+
+
+def phe_query(filters={}, fields=[], fmt="csv"):
+    endpoint = "https://api.coronavirus-staging.data.gov.uk/v1/data"
+
+    params = urlencode(
+        {
+            "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
+            "structure": json.dumps({f: f for f in fields}, separators=(",", ":")),
+            "format": fmt,
+        }
+    )
+
+    return endpoint + "?" + params
