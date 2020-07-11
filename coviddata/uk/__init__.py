@@ -147,7 +147,6 @@ def deaths_nhs():
         if today == date(2020, 7, 11):
             url = url.replace(".xlsx", "-1.xlsx")
 
-        print(url)
         try:
             data = pd.read_excel(
                 url,
