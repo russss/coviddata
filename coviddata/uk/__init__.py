@@ -201,14 +201,43 @@ def hospitalisations_phe(key="name"):
 
     data = (
         pd.read_csv(url, parse_dates=["date"])
-        .rename(columns={loc_field: loc_name,
-                         'cumAdmissions': 'admissions'})
+        .rename(columns={loc_field: loc_name, "cumAdmissions": "admissions"})
         .set_index([loc_name, "date"])
+        .sort_index()
     )
     data = xr.Dataset.from_dataframe(data)
     data.attrs["date"] = max_date(data)
     data.attrs["source"] = "Public Health England"
     data.attrs["source_url"] = url
+
+    data = data.ffill("date")  # Fill-forward missing data
+    return data
+
+
+def deaths_phe(key="name"):
+    if key == "name":
+        loc_field = "areaName"
+        loc_name = "location"
+    elif key == "gss":
+        loc_field = "areaCode"
+        loc_name = "gss_code"
+
+    url = phe_query(
+        filters={"areaType": "nation"},
+        fields=[loc_field, "date", "cumDeathsByDeathDate"],
+    )
+    data = (
+        pd.read_csv(url, parse_dates=["date"])
+        .rename(columns={"cumDeathsByDeathDate": "deaths", loc_field: loc_name})
+        .set_index([loc_name, "date"])
+        .sort_index()
+    )
+    data = xr.Dataset.from_dataframe(data)
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "Public Health England"
+    data.attrs["source_url"] = url
+
+    data = data.ffill("date")  # Fill-forward missing data
     return data
 
 
