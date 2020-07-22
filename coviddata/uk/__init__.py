@@ -107,7 +107,7 @@ def triage_nhs_pathways():
 
 
 def triage_nhs_online():
-    url = _get_nhs_potential("111 Online Potential COIVD-19 Open Data")
+    url = _get_nhs_potential("111 Online Potential COVID-19 Open Data")
     df = (
         pd.read_csv(url, parse_dates=[0], dayfirst=True)
         .rename(
