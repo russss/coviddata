@@ -12,55 +12,66 @@ import xarray as xr
 from ..util import max_date
 
 
-def cases_phe(by="countries", key="name"):
+def phe_query(filters={}, fields=[], fmt="csv"):
+    """ Helper to generate a query for the new PHE data API """
+    endpoint = "https://api.coronavirus.data.gov.uk/v1/data"
+
+    params = urlencode(
+        {
+            "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
+            "structure": json.dumps({f: f for f in fields}, separators=(",", ":")),
+            "format": fmt,
+        }
+    )
+
+    return endpoint + "?" + params
+
+
+def _fix_by(by):
+    return {'countries': 'nation',
+             'regions': 'region',
+             'ltlas': 'ltla'}.get(by, by)
+
+
+def cases_phe(by="nation", key="name", basis="occurrence"):
     """ Cases and deaths data from Public Health England.
         This is the data used by coronavirus.data.gov.uk.
 
-        The `by` variable can be "countries", "regions", "utlas", or "ltlas".
+        The `by` variable can be "nation", "region", or "ltla".
 
-        The "key" variable can be "name" if you want the data broken down by
+        The `key` variable can be "name" if you want the data broken down by
         location name, or "gss_code" for GSS code.
+
+        The `basis` variable can be "occurrence" to retrieve cases by date of
+        sample and deaths by date of death, or "report" to fetch them by date
+        of report. Note that Northern Ireland does not provide data by date of occurrence.
     """
-    url = f"https://c19downloads.azureedge.net/downloads/data/{by}_latest.json"
-
-    res = requests.get(url)
-    res.raise_for_status()
-    data = res.json()
-
-    series = []
-    for gss, area_data in data.items():
-        if gss == "metadata":
-            continue
-        name = area_data["name"]["value"]
-        converted = defaultdict(dict)
-
-        if "dailyTotalConfirmedCases" in area_data:
-            for val in area_data["dailyTotalConfirmedCases"]:
-                converted[val["date"]]["cases"] = val["value"]
-
-        if "changeInDailyCasesAdjusted" in area_data:
-            for val in area_data["changeInDailyCasesAdjusted"]:
-                converted[val["date"]]["new_cases"] = val["value"]
-
-        if "dailyTotalDeaths" in area_data:
-            for val in area_data["dailyTotalDeaths"]:
-                converted[val["date"]]["deaths"] = val["value"]
-
-        for d, value in converted.items():
-            row = {"date": parse_date(d), "location": name, "gss_code": gss}
-            if "cases" in value:
-                row["cases"] = value["cases"]
-            if "new_cases" in value:
-                row["new_cases"] = value["new_cases"]
-            if "deaths" in value:
-                row["deaths"] = value["deaths"]
-            series.append(row)
-    df = pd.DataFrame(series)
     if key == "name":
-        df = df.set_index(["location", "date"]).drop(columns=["gss_code"])
+        loc_field = "areaName"
+        loc_name = "location"
     elif key == "gss_code":
-        df = df.set_index(["gss_code", "date"]).drop(columns=["location"])
-    xdata = xr.Dataset.from_dataframe(df)
+        loc_field = "areaCode"
+        loc_name = "gss_code"
+
+    if basis == 'occurrence':
+        cases_field = "cumCasesBySpecimenDate"
+        deaths_field = "cumDeathsByDeathDate"
+    else:
+        cases_field = "cumCasesByPublishDate"
+        deaths_field = "cumDeathsByPublishDate"
+
+    url = phe_query(
+        filters={"areaType": _fix_by(by)},
+        fields=[loc_field, "date", cases_field, deaths_field],
+    )
+
+    data = pd.read_csv(url, parse_dates=['date'], dayfirst=True).rename(columns={
+        cases_field: "cases",
+        deaths_field: "deaths",
+        loc_field: loc_name
+    }).set_index(["date", loc_name])
+
+    xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
     xdata.attrs["source"] = "Public Health England"
     xdata.attrs["source_url"] = url
@@ -239,17 +250,3 @@ def deaths_phe(key="name"):
 
     data = data.ffill("date")  # Fill-forward missing data
     return data
-
-
-def phe_query(filters={}, fields=[], fmt="csv"):
-    endpoint = "https://api.coronavirus-staging.data.gov.uk/v1/data"
-
-    params = urlencode(
-        {
-            "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
-            "structure": json.dumps({f: f for f in fields}, separators=(",", ":")),
-            "format": fmt,
-        }
-    )
-
-    return endpoint + "?" + params
