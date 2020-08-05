@@ -4,6 +4,7 @@ from dateutil.parser import parse as parse_date
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from datetime import date, timedelta
+from io import StringIO
 import requests
 import json
 import numpy as np
@@ -12,19 +13,42 @@ import xarray as xr
 from ..util import max_date
 
 
-def phe_query(filters={}, fields=[], fmt="csv"):
+def phe_query(filters={}, fields=[], fmt="csv", page=None):
     """ Helper to generate a query for the new PHE data API """
     endpoint = "https://api.coronavirus.data.gov.uk/v1/data"
 
-    params = urlencode(
-        {
+    params = {
             "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
             "structure": json.dumps({f: f for f in fields}, separators=(",", ":")),
             "format": fmt,
         }
-    )
 
-    return endpoint + "?" + params
+    if page is not None:
+        params['page'] = page
+
+    return endpoint + "?" + urlencode(params)
+
+
+def phe_fetch_csv(filters, fields):
+    page = 1
+    result_data = ''
+
+    while True:
+        url = phe_query(filters=filters, fields=fields, fmt='csv', page=page)
+        res = requests.get(url)
+        res.raise_for_status()
+
+        if res.status_code == 204:
+            break
+
+        result_lines = res.text.split("\n")
+        if page > 1:
+            result_lines = result_lines[1:]
+        result_data += "\n".join(result_lines)
+
+        page += 1
+
+    return StringIO(result_data)
 
 
 def _fix_by(by):
@@ -60,12 +84,12 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
         cases_field = "cumCasesByPublishDate"
         deaths_field = "cumDeathsByPublishDate"
 
-    url = phe_query(
+    data = phe_fetch_csv(
         filters={"areaType": _fix_by(by)},
         fields=[loc_field, "date", cases_field, deaths_field],
     )
 
-    data = pd.read_csv(url, parse_dates=['date'], dayfirst=True).rename(columns={
+    data = pd.read_csv(data, parse_dates=['date'], dayfirst=True).rename(columns={
         cases_field: "cases",
         deaths_field: "deaths",
         loc_field: loc_name
@@ -74,7 +98,7 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
     xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
     xdata.attrs["source"] = "Public Health England"
-    xdata.attrs["source_url"] = url
+    xdata.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
 
     return xdata
 
@@ -206,12 +230,12 @@ def hospitalisations_phe(key="name"):
         loc_field = "areaCode"
         loc_name = "gss_code"
 
-    url = phe_query(
+    data = phe_fetch_csv(
         filters={"areaType": "nhsregion"}, fields=[loc_field, "date", "cumAdmissions"],
     )
 
     data = (
-        pd.read_csv(url, parse_dates=["date"])
+        pd.read_csv(data, parse_dates=["date"])
         .rename(columns={loc_field: loc_name, "cumAdmissions": "admissions"})
         .set_index([loc_name, "date"])
         .sort_index()
@@ -219,7 +243,7 @@ def hospitalisations_phe(key="name"):
     data = xr.Dataset.from_dataframe(data)
     data.attrs["date"] = max_date(data)
     data.attrs["source"] = "Public Health England"
-    data.attrs["source_url"] = url
+    data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
 
     data = data.ffill("date")  # Fill-forward missing data
     return data
@@ -233,12 +257,12 @@ def deaths_phe(key="name"):
         loc_field = "areaCode"
         loc_name = "gss_code"
 
-    url = phe_query(
+    data = phe_fetch_csv(
         filters={"areaType": "nation"},
         fields=[loc_field, "date", "cumDeathsByDeathDate"],
     )
     data = (
-        pd.read_csv(url, parse_dates=["date"])
+        pd.read_csv(data, parse_dates=["date"])
         .rename(columns={"cumDeathsByDeathDate": "deaths", loc_field: loc_name})
         .set_index([loc_name, "date"])
         .sort_index()
@@ -246,7 +270,7 @@ def deaths_phe(key="name"):
     data = xr.Dataset.from_dataframe(data)
     data.attrs["date"] = max_date(data)
     data.attrs["source"] = "Public Health England"
-    data.attrs["source_url"] = url
+    data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
 
     data = data.ffill("date")  # Fill-forward missing data
     return data
