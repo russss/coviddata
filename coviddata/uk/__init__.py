@@ -58,7 +58,7 @@ def _fix_by(by):
 
 
 def cases_phe(by="nation", key="name", basis="occurrence"):
-    """ Cases and deaths data from Public Health England.
+    """ Cases data from Public Health England.
         This is the data used by coronavirus.data.gov.uk.
 
         The `by` variable can be "nation", "region", or "ltla".
@@ -79,19 +79,16 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
 
     if basis == 'occurrence':
         cases_field = "cumCasesBySpecimenDate"
-        deaths_field = "cumDeathsByDeathDate"
     else:
         cases_field = "cumCasesByPublishDate"
-        deaths_field = "cumDeathsByPublishDate"
 
     data = phe_fetch_csv(
         filters={"areaType": _fix_by(by)},
-        fields=[loc_field, "date", cases_field, deaths_field],
+        fields=[loc_field, "date", cases_field],
     )
 
     data = pd.read_csv(data, parse_dates=['date'], dayfirst=True).rename(columns={
         cases_field: "cases",
-        deaths_field: "deaths",
         loc_field: loc_name
     }).set_index(["date", loc_name])
 
