@@ -2,7 +2,7 @@ from collections import defaultdict
 from lxml.html import html5parser
 from dateutil.parser import parse as parse_date
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from datetime import date, timedelta
 from io import StringIO
 import requests
@@ -18,23 +18,23 @@ def phe_query(filters={}, fields=[], fmt="csv", page=None):
     endpoint = "https://api.coronavirus.data.gov.uk/v1/data"
 
     params = {
-            "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
-            "structure": json.dumps({f: f for f in fields}, separators=(",", ":")),
-            "format": fmt,
-        }
+        "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
+        "structure": json.dumps({f: f for f in fields}, separators=(",", ":")),
+        "format": fmt,
+    }
 
     if page is not None:
-        params['page'] = page
+        params["page"] = page
 
     return endpoint + "?" + urlencode(params)
 
 
 def phe_fetch_csv(filters, fields):
     page = 1
-    result_data = ''
+    result_data = ""
 
     while True:
-        url = phe_query(filters=filters, fields=fields, fmt='csv', page=page)
+        url = phe_query(filters=filters, fields=fields, fmt="csv", page=page)
         res = requests.get(url)
         res.raise_for_status()
 
@@ -52,23 +52,21 @@ def phe_fetch_csv(filters, fields):
 
 
 def _fix_by(by):
-    return {'countries': 'nation',
-             'regions': 'region',
-             'ltlas': 'ltla'}.get(by, by)
+    return {"countries": "nation", "regions": "region", "ltlas": "ltla"}.get(by, by)
 
 
 def cases_phe(by="nation", key="name", basis="occurrence"):
-    """ Cases data from Public Health England.
-        This is the data used by coronavirus.data.gov.uk.
+    """Cases data from Public Health England.
+    This is the data used by coronavirus.data.gov.uk.
 
-        The `by` variable can be "nation", "region", or "ltla".
+    The `by` variable can be "nation", "region", or "ltla".
 
-        The `key` variable can be "name" if you want the data broken down by
-        location name, or "gss_code" for GSS code.
+    The `key` variable can be "name" if you want the data broken down by
+    location name, or "gss_code" for GSS code.
 
-        The `basis` variable can be "occurrence" to retrieve cases by date of
-        sample and deaths by date of death, or "report" to fetch them by date
-        of report. Note that Northern Ireland does not provide data by date of occurrence.
+    The `basis` variable can be "occurrence" to retrieve cases by date of
+    sample and deaths by date of death, or "report" to fetch them by date
+    of report. Note that Northern Ireland does not provide data by date of occurrence.
     """
     if key == "name":
         loc_field = "areaName"
@@ -77,20 +75,20 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
         loc_field = "areaCode"
         loc_name = "gss_code"
 
-    if basis == 'occurrence':
+    if basis == "occurrence":
         cases_field = "cumCasesBySpecimenDate"
     else:
         cases_field = "cumCasesByPublishDate"
 
     data = phe_fetch_csv(
-        filters={"areaType": _fix_by(by)},
-        fields=[loc_field, "date", cases_field],
+        filters={"areaType": _fix_by(by)}, fields=[loc_field, "date", cases_field],
     )
 
-    data = pd.read_csv(data, parse_dates=['date'], dayfirst=True).rename(columns={
-        cases_field: "cases",
-        loc_field: loc_name
-    }).set_index(["date", loc_name])
+    data = (
+        pd.read_csv(data, parse_dates=["date"], dayfirst=True)
+        .rename(columns={cases_field: "cases", loc_field: loc_name})
+        .set_index(["date", loc_name])
+    )
 
     xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
@@ -172,7 +170,7 @@ def deaths_nhs():
     i = 0
     while True:
         url = (
-            f"https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/"
+            "https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/"
             f"{today.year}/{today.month:02}/"
             f"COVID-19-total-announced-deaths-{today.day}-{today.strftime('%B-%Y')}.xlsx"
         )
@@ -271,3 +269,45 @@ def deaths_phe(key="name"):
 
     data = data.ffill("date")  # Fill-forward missing data
     return data
+
+
+def fetch_json_ld(url):
+    res = requests.get(url)
+    res.raise_for_status()
+    root = html5parser.fromstring(res.text)
+    return json.loads(
+        root.find(
+            './/{http://www.w3.org/1999/xhtml}script[@type="application/ld+json"]'
+        ).text
+    )
+
+
+def infections_ons():
+    res = requests.get(
+        "https://www.ons.gov.uk/peoplepopulationandcommunity/healthandsocialcare/"
+        "conditionsanddiseases/datasets/coronaviruscovid19infectionsurveydata"
+    )
+    root = html5parser.fromstring(res.text)
+    url = urljoin(
+        "https://www.ons.gov.uk",
+        root.find(
+            './/{http://www.w3.org/1999/xhtml}a[@aria-label="Download Coronavirus'
+            ' (COVID-19) Infection Survey: 2020 in xlsx format"]'
+        ).get("href"),
+    )
+
+    df = pd.read_excel(requests.get(url).content, sheet_name="2b", skiprows=6, skipfooter=10)
+    df = df.drop(columns=[df.columns[4], df.columns[8]])
+    df.columns = [
+        "date",
+        "incidence",
+        "incidence_lower",
+        "incidence_upper",
+        "infections",
+        "infections_lower",
+        "infections_upper",
+        "weekly",
+        "weekly_lower",
+        "weekly_upper",
+    ]
+    return df
