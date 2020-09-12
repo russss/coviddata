@@ -98,6 +98,35 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
     return xdata
 
 
+def tests_phe():
+    """ Data on number of tests carried out from Public Health England. """
+    fields = [
+        "date",
+        "plannedCapacityByPublishDate",
+        "capacityPillarOne",
+        "capacityPillarTwo",
+        "capacityPillarThree",
+        "capacityPillarFour",
+        "newPillarOneTestsByPublishDate",
+        "newPillarTwoTestsByPublishDate",
+        "newPillarThreeTestsByPublishDate",
+        "newPillarFourTestsByPublishDate",
+    ]
+    data = phe_fetch_csv(filters={"areaType": "overview"}, fields=fields)
+    data = (
+        pd.read_csv(data, parse_dates=["date"], dayfirst=True)
+        .set_index(["date"])
+        .sort_index()
+    )
+
+    xdata = xr.Dataset.from_dataframe(data)
+    xdata.attrs["date"] = max_date(xdata)
+    xdata.attrs["source"] = "Public Health England"
+    xdata.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
+
+    return xdata
+
+
 def _get_nhs_potential(title):
     url = (
         "https://digital.nhs.uk/data-and-information/publications/statistical"
@@ -296,7 +325,9 @@ def infections_ons():
         ).get("href"),
     )
 
-    df = pd.read_excel(requests.get(url).content, sheet_name="2b", skiprows=6, skipfooter=10)
+    df = pd.read_excel(
+        requests.get(url).content, sheet_name="2b", skiprows=6, skipfooter=10
+    )
     df = df.drop(columns=[df.columns[4], df.columns[8]])
     df.columns = [
         "date",
