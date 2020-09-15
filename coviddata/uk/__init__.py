@@ -12,10 +12,11 @@ import pandas as pd
 import xarray as xr
 from ..util import max_date
 
+PHE_ENDPOINT = "https://api.coronavirus.data.gov.uk"
+
 
 def phe_query(filters={}, fields=[], fmt="csv", page=None):
     """ Helper to generate a query for the new PHE data API """
-    endpoint = "https://api.coronavirus.data.gov.uk/v1/data"
 
     params = {
         "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
@@ -26,10 +27,11 @@ def phe_query(filters={}, fields=[], fmt="csv", page=None):
     if page is not None:
         params["page"] = page
 
-    return endpoint + "?" + urlencode(params)
+    return PHE_ENDPOINT + "/v1/data?" + urlencode(params)
 
 
 def phe_fetch_csv(filters, fields):
+    """ Fetch data from coronavirus.data.gov.uk as a CSV."""
     page = 1
     result_data = ""
 
@@ -49,6 +51,24 @@ def phe_fetch_csv(filters, fields):
         page += 1
 
     return StringIO(result_data)
+
+
+def phe_fetch_json(filters, fields):
+    """ Fetch data from coronavirus.data.gov.uk as JSON, returning a Pandas-compatible dict-of-lists."""
+    data = defaultdict(list)
+    url = phe_query(filters=filters, fields=fields, fmt="json")
+    while True:
+        res = requests.get(url)
+        res.raise_for_status()
+        response = res.json()
+        for row in response["data"]:
+            for key, val in row.items():
+                data[key].append(val)
+        if response["pagination"]["next"]:
+            url = PHE_ENDPOINT + response["pagination"]["next"]
+        else:
+            break
+    return data
 
 
 def _fix_by(by):
@@ -80,17 +100,20 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
     else:
         cases_field = "cumCasesByPublishDate"
 
-    data = phe_fetch_csv(
-        filters={"areaType": _fix_by(by)}, fields=[loc_field, "date", cases_field],
+    data = pd.DataFrame(
+        phe_fetch_json(
+            filters={"areaType": _fix_by(by)}, fields=[loc_field, "date", cases_field],
+        )
     )
 
+    data["date"] = pd.to_datetime(data["date"])
+
     data = (
-        pd.read_csv(data, parse_dates=["date"], dayfirst=True)
-        .rename(columns={cases_field: "cases", loc_field: loc_name})
+        data.rename(columns={cases_field: "cases", loc_field: loc_name})
         .set_index(["date", loc_name])
         .sort_index()
     )
-    
+
     xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
     xdata.attrs["source"] = "Public Health England"
