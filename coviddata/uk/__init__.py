@@ -10,7 +10,7 @@ import json
 import numpy as np
 import pandas as pd
 import xarray as xr
-from ..util import max_date, deduplicate
+from ..util import max_date
 
 
 def phe_query(filters={}, fields=[], fmt="csv", page=None):
@@ -91,8 +91,6 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
         .sort_index()
     )
     
-    data = deduplicate(data)
-
     xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
     xdata.attrs["source"] = "Public Health England"
