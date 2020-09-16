@@ -5,14 +5,18 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode, urljoin
 from datetime import date, timedelta
 from io import StringIO
+import logging
 import requests
 import json
+import time
 import numpy as np
 import pandas as pd
 import xarray as xr
 from ..util import max_date
 
 PHE_ENDPOINT = "https://api.coronavirus.data.gov.uk"
+
+log = logging.getLogger(__name__)
 
 
 def phe_query(filters={}, fields=[], fmt="csv", page=None):
@@ -55,19 +59,27 @@ def phe_fetch_csv(filters, fields):
 
 def phe_fetch_json(filters, fields):
     """ Fetch data from coronavirus.data.gov.uk as JSON, returning a Pandas-compatible dict-of-lists."""
+    start = time.time()
+    log.debug("JSON Query: filters: %s  fields: %s")
     data = defaultdict(list)
     url = phe_query(filters=filters, fields=fields, fmt="json")
     while True:
+        log.debug("- Fetching JSON page %s", url)
         res = requests.get(url)
         res.raise_for_status()
         response = res.json()
+
+        log.debug("- Returned %s records", len(response["data"]))
         for row in response["data"]:
             for key, val in row.items():
                 data[key].append(val)
+
         if response["pagination"]["next"]:
             url = PHE_ENDPOINT + response["pagination"]["next"]
         else:
             break
+
+    log.debug("Query complete, %s records in %.3f secs", len(data), time.time() - start)
     return data
 
 
@@ -366,3 +378,29 @@ def infections_ons():
         "weekly_upper",
     ]
     return df
+
+
+def _get_phe_weekly_report_url():
+    """ Get the URL to the Excel data files for the latest PHE weekly coronavirus report. """
+    data = requests.get(
+        "https://www.gov.uk/api/content/government/publications/national-covid-19-surveillance-reports"
+    ).json()
+    file_info = next(
+        att
+        for att in data["details"]["attachments"]
+        if att["title"].startswith("National COVID-19 surveillance data report")
+    )
+    return file_info["url"]
+
+
+def case_rate_by_age():
+    return (
+        pd.read_excel(
+            _get_phe_weekly_report_url(),
+            sheet_name="Figure 4. Case rates by agegrp",
+            skiprows=8,
+            usecols="B:L",
+        )
+        .rename(columns={"Unnamed: 1": "week"})
+        .set_index("week")
+    )
