@@ -31,7 +31,40 @@ def phe_query(filters={}, fields=[], fmt="csv", page=None):
     if page is not None:
         params["page"] = page
 
-    return PHE_ENDPOINT + "/v1/data?" + urlencode(params)
+    return "/v1/data?" + urlencode(params)
+
+
+def phe_fetch_url(path):
+    """ Fetch a URL from the coronavirus.data.gov.uk API with elaborate retry
+        handling because they can't operate a functional website.
+    """
+    url = PHE_ENDPOINT + path
+
+    retry_count = 5
+    while retry_count > 0:
+        res = requests.get(url)
+
+        if res.status_code in (200, 204):
+            break
+        elif 400 <= res.status_code < 500:
+            res.raise_for_status()
+
+        sleep_time = int(res.headers.get("Retry-After", 60))
+        retry_count -= 1
+        log.info(
+            "PHE request (%s) failed with code %s. Waiting %s seconds "
+            "(%s retries left)...",
+            path,
+            res.status_code,
+            sleep_time,
+            retry_count,
+        )
+        time.sleep(sleep_time)
+
+    if retry_count == 0:
+        raise Exception(f"PHE fetch ({path}) failed.")
+
+    return res
 
 
 def phe_fetch_csv(filters, fields):
@@ -40,8 +73,8 @@ def phe_fetch_csv(filters, fields):
     result_data = ""
 
     while True:
-        url = phe_query(filters=filters, fields=fields, fmt="csv", page=page)
-        res = requests.get(url)
+        path = phe_query(filters=filters, fields=fields, fmt="csv", page=page)
+        res = phe_fetch_url(path)
         res.raise_for_status()
 
         if res.status_code == 204:
@@ -60,13 +93,12 @@ def phe_fetch_csv(filters, fields):
 def phe_fetch_json(filters, fields):
     """ Fetch data from coronavirus.data.gov.uk as JSON, returning a Pandas-compatible dict-of-lists."""
     start = time.time()
-    log.debug("JSON Query: filters: %s  fields: %s")
+    log.debug("JSON Query: filters: %s  fields: %s", filters, fields)
     data = defaultdict(list)
     url = phe_query(filters=filters, fields=fields, fmt="json")
     while True:
         log.debug("- Fetching JSON page %s", url)
-        res = requests.get(url)
-        res.raise_for_status()
+        res = phe_fetch_url(url)
         response = res.json()
 
         log.debug("- Returned %s records", len(response["data"]))
@@ -75,7 +107,7 @@ def phe_fetch_json(filters, fields):
                 data[key].append(val)
 
         if response["pagination"]["next"]:
-            url = PHE_ENDPOINT + response["pagination"]["next"]
+            url = response["pagination"]["next"]
         else:
             break
 
