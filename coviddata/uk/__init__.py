@@ -180,10 +180,10 @@ def tests_phe():
         "newPillarThreeTestsByPublishDate",
         "newPillarFourTestsByPublishDate",
     ]
-    data = phe_fetch_csv(filters={"areaType": "overview"}, fields=fields)
+    data = pd.DataFrame(phe_fetch_json(filters={"areaType": "overview"}, fields=fields))
+    data["date"] = pd.to_datetime(data["date"])
     data = (
-        pd.read_csv(data, parse_dates=["date"], dayfirst=True)
-        .set_index(["date"])
+        data.set_index(["date"])
         .sort_index()
     )
 
@@ -322,13 +322,14 @@ def hospitalisations_phe(key="name"):
         loc_field = "areaCode"
         loc_name = "gss_code"
 
-    data = phe_fetch_csv(
+    data = pd.DataFrame(phe_fetch_json(
         filters={"areaType": "nhsregion"}, fields=[loc_field, "date", "cumAdmissions"],
-    )
+    ))
+
+    data["date"] = pd.to_datetime(data["date"])
 
     data = (
-        pd.read_csv(data, parse_dates=["date"])
-        .rename(columns={loc_field: loc_name, "cumAdmissions": "admissions"})
+        data.rename(columns={loc_field: loc_name, "cumAdmissions": "admissions"})
         .set_index([loc_name, "date"])
         .sort_index()
     )
