@@ -1,6 +1,5 @@
 from collections import defaultdict
 from lxml.html import html5parser
-from dateutil.parser import parse as parse_date
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urljoin
 from datetime import date, timedelta
@@ -35,8 +34,8 @@ def phe_query(filters={}, fields=[], fmt="csv", page=None):
 
 
 def phe_fetch_url(path):
-    """ Fetch a URL from the coronavirus.data.gov.uk API with elaborate retry
-        handling because they can't operate a functional website.
+    """Fetch a URL from the coronavirus.data.gov.uk API with elaborate retry
+    handling because they can't operate a functional website.
     """
     url = PHE_ENDPOINT + path
 
@@ -146,7 +145,8 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
 
     data = pd.DataFrame(
         phe_fetch_json(
-            filters={"areaType": _fix_by(by)}, fields=[loc_field, "date", cases_field],
+            filters={"areaType": _fix_by(by)},
+            fields=[loc_field, "date", cases_field],
         )
     )
 
@@ -182,10 +182,7 @@ def tests_phe():
     ]
     data = pd.DataFrame(phe_fetch_json(filters={"areaType": "overview"}, fields=fields))
     data["date"] = pd.to_datetime(data["date"])
-    data = (
-        data.set_index(["date"])
-        .sort_index()
-    )
+    data = data.set_index(["date"]).sort_index()
 
     xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
@@ -281,6 +278,7 @@ def deaths_nhs():
                 skiprows=15,
                 usecols=col_sel,
                 index_col=0,
+                engine="openpyxl"  # due to xlrd incompatibility with py3.9
             )
             break
         except HTTPError:
@@ -322,9 +320,12 @@ def hospitalisations_phe(key="name"):
         loc_field = "areaCode"
         loc_name = "gss_code"
 
-    data = pd.DataFrame(phe_fetch_json(
-        filters={"areaType": "nhsregion"}, fields=[loc_field, "date", "cumAdmissions"],
-    ))
+    data = pd.DataFrame(
+        phe_fetch_json(
+            filters={"areaType": "nhsregion"},
+            fields=[loc_field, "date", "cumAdmissions"],
+        )
+    )
 
     data["date"] = pd.to_datetime(data["date"])
 
@@ -413,27 +414,51 @@ def infections_ons():
     return df
 
 
-def _get_phe_weekly_report_url():
-    """ Get the URL to the Excel data files for the latest PHE weekly coronavirus report. """
-    data = requests.get(
-        "https://www.gov.uk/api/content/government/publications/national-covid-19-surveillance-reports"
-    ).json()
-    file_info = next(
-        att
-        for att in data["details"]["attachments"]
-        if att["title"].startswith("National COVID-19 surveillance data report")
+def cases_by_age(area_type="ltla", key="gss_code", var="absolute"):
+    data = pd.read_csv(
+        "https://coronavirus.data.gov.uk/downloads/demographic/cases/specimenDate_ageDemographic-stacked.csv",
+        parse_dates=["date"],
     )
-    return file_info["url"]
 
-
-def case_rate_by_age():
-    return (
-        pd.read_excel(
-            _get_phe_weekly_report_url(),
-            sheet_name="Figure 4. Case rates by agegrp",
-            skiprows=8,
-            usecols="B:L",
-        )
-        .rename(columns={"Unnamed: 1": "week"})
-        .set_index("week")
+    # 0-59 and 60+ overlap other age ranges, so we're not interested
+    data = data[
+        (data["areaType"] == area_type)
+        & (data["age"] != "0_59")
+        & (data["age"] != "60+")
+    ]
+    data = data.drop(columns=["areaType"])
+    data["age"] = data["age"].str.replace(
+        r"([0-9]+)_([0-9]+)", lambda r: r.group(1) + "-" + r.group(2)
     )
+
+    if var == "absolute":
+        data = data.drop(
+            columns=[
+                "newCasesBySpecimenDateRollingSum",
+                "newCasesBySpecimenDateRollingRate",
+            ]
+        ).rename(columns={"newCasesBySpecimenDate": "cases"})
+    elif var == "rate":
+        data = data.drop(
+            columns=[
+                "newCasesBySpecimenDateRollingSum",
+                "newCasesBySpecimenDate",
+            ]
+        ).rename(columns={"newCasesBySpecimenDateRollingRate": "rate"})
+
+    if key == "gss_code":
+        index_cols = ["gss_code"]
+        data = data.drop(columns=["areaName"]).rename(columns={"areaCode": "gss_code"})
+    elif key == "name":
+        index_cols = ["name"]
+        data = data.drop(columns=["areaCode"]).rename(columns={"areaName": "name"})
+
+    index_cols += ["date", "age"]
+
+    data = data.set_index(index_cols)
+    data = xr.Dataset.from_dataframe(data)
+
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "Public Health England"
+    data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
+    return data
