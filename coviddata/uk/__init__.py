@@ -278,7 +278,7 @@ def deaths_nhs():
                 skiprows=15,
                 usecols=col_sel,
                 index_col=0,
-                engine="openpyxl"  # due to xlrd incompatibility with py3.9
+                engine="openpyxl",  # due to xlrd incompatibility with py3.9
             )
             break
         except HTTPError:
@@ -456,6 +456,43 @@ def cases_by_age(area_type="ltla", key="gss_code", var="absolute"):
     index_cols += ["date", "age"]
 
     data = data.set_index(index_cols)
+    data = xr.Dataset.from_dataframe(data)
+
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "Public Health England"
+    data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
+    return data
+
+
+def test_positivity(area_type="ltla", key="gss"):
+    """ 7-day test positivity """
+    if key == "name":
+        loc_field = "areaName"
+        loc_name = "location"
+    elif key == "gss":
+        loc_field = "areaCode"
+        loc_name = "gss_code"
+
+    data = pd.DataFrame(
+        phe_fetch_json(
+            filters={"areaType": area_type},
+            fields=[loc_field, "date", "uniqueCasePositivityBySpecimenDateRollingSum"],
+        )
+    )
+
+    data["date"] = pd.to_datetime(data["date"])
+
+    data = (
+        data.rename(
+            columns={
+                loc_field: loc_name,
+                "uniqueCasePositivityBySpecimenDateRollingSum": "positivity",
+            }
+        )
+        .set_index([loc_name, "date"])
+        .sort_index()
+    )
+
     data = xr.Dataset.from_dataframe(data)
 
     data.attrs["date"] = max_date(data)
