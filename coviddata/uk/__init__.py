@@ -11,7 +11,7 @@ import time
 import numpy as np
 import pandas as pd
 import xarray as xr
-from ..util import max_date
+from ..util import max_date, read_csv
 
 PHE_ENDPOINT = "https://api.coronavirus.data.gov.uk"
 
@@ -415,10 +415,11 @@ def infections_ons():
 
 
 def cases_by_age(area_type="ltla", key="gss_code", var="absolute"):
-    data = pd.read_csv(
-        "https://coronavirus.data.gov.uk/downloads/demographic/cases/specimenDate_ageDemographic-stacked.csv",
-        parse_dates=["date"],
+    url = (
+        "https://coronavirus.data.gov.uk/downloads/demographic/cases/"
+        "specimenDate_ageDemographic-stacked.csv"
     )
+    data = read_csv(url, parse_dates=["date"])
 
     # 0-59 and 60+ overlap other age ranges, so we're not interested
     data = data[
@@ -502,33 +503,40 @@ def test_positivity(area_type="ltla", key="gss"):
 
 
 def vaccinations():
-    """ Fetch daily data (by date of report) on vaccinations.
-        This dataset also includes some weekly date-of-vaccination
-        data points from before the daily dataset started."""
-    data = pd.DataFrame(
-        phe_fetch_json(
-            filters={"areaType": "overview"},
-            fields=[
-                "areaName",
-                "date",
-                "cumPeopleVaccinatedFirstDoseByPublishDate",
-                "cumPeopleVaccinatedSecondDoseByPublishDate",
-            ],
+    """Fetch daily data (by date of report) on vaccinations.
+    This dataset also includes some weekly date-of-vaccination
+    data points from before the daily dataset started."""
+    data = (
+        pd.DataFrame(
+            phe_fetch_json(
+                filters={"areaType": "overview"},
+                fields=[
+                    "areaName",
+                    "date",
+                    "cumPeopleVaccinatedFirstDoseByPublishDate",
+                    "cumPeopleVaccinatedSecondDoseByPublishDate",
+                ],
+            )
         )
-    ).rename(columns={"cumPeopleVaccinatedFirstDoseByPublishDate": "first_dose",
-                      "cumPeopleVaccinatedSecondDoseByPublishDate": "second_dose",
-                      "areaName": "location"
-                      }).drop(columns=['location'])
+        .rename(
+            columns={
+                "cumPeopleVaccinatedFirstDoseByPublishDate": "first_dose",
+                "cumPeopleVaccinatedSecondDoseByPublishDate": "second_dose",
+                "areaName": "location",
+            }
+        )
+        .drop(columns=["location"])
+    )
 
-    data['date'] = pd.to_datetime(data['date'])
-    data = data.set_index('date')
+    data["date"] = pd.to_datetime(data["date"])
+    data = data.set_index("date")
 
     # Insert values from weekly numbers before daily stats were available.
-    data.loc[pd.to_datetime('2020-12-6')] = [0, 0]
-    data.loc[pd.to_datetime('2020-12-7')] = [0, 0]
-    data.loc[pd.to_datetime('2020-12-20')] = [663809, 0]
-    data.loc[pd.to_datetime('2020-12-27')] = [985479, 0]
-    data.loc[pd.to_datetime('2021-01-03')] = [1344152, 20977]
+    data.loc[pd.to_datetime("2020-12-6")] = [0, 0]
+    data.loc[pd.to_datetime("2020-12-7")] = [0, 0]
+    data.loc[pd.to_datetime("2020-12-20")] = [663809, 0]
+    data.loc[pd.to_datetime("2020-12-27")] = [985479, 0]
+    data.loc[pd.to_datetime("2021-01-03")] = [1344152, 20977]
 
     data = xr.Dataset.from_dataframe(data.sort_index())
 
