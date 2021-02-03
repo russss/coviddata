@@ -27,7 +27,7 @@ def read_csv(*args, **kwargs):
                 raise
             retries -= 1
             log.warn(
-                "Error %s reading cases by age, retrying %s more times", e, retries
+                "Error %s reading CSV, retrying %s more times", e, retries
             )
             sleep(2)
 
