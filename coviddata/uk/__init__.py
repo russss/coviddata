@@ -18,7 +18,7 @@ PHE_ENDPOINT = "https://api.coronavirus.data.gov.uk"
 log = logging.getLogger(__name__)
 
 
-def phe_query(filters={}, fields=[], fmt="csv", page=None):
+def phe_query(filters={}, fields=[], fmt="csv", page=None, latest_by=None):
     """ Helper to generate a query for the new PHE data API """
 
     params = {
@@ -29,6 +29,9 @@ def phe_query(filters={}, fields=[], fmt="csv", page=None):
 
     if page is not None:
         params["page"] = page
+
+    if latest_by is not None:
+        params["latestBy"] = latest_by
 
     return "/v1/data?" + urlencode(params)
 
@@ -89,12 +92,12 @@ def phe_fetch_csv(filters, fields):
     return StringIO(result_data)
 
 
-def phe_fetch_json(filters, fields):
+def phe_fetch_json(filters, fields, unpack_key=None, latest_by=None):
     """ Fetch data from coronavirus.data.gov.uk as JSON, returning a Pandas-compatible dict-of-lists."""
     start = time.time()
     log.debug("JSON Query: filters: %s  fields: %s", filters, fields)
     data = defaultdict(list)
-    url = phe_query(filters=filters, fields=fields, fmt="json")
+    url = phe_query(filters=filters, fields=fields, fmt="json", latest_by=latest_by)
     while True:
         log.debug("- Fetching JSON page %s", url)
         res = phe_fetch_url(url)
@@ -102,10 +105,19 @@ def phe_fetch_json(filters, fields):
 
         log.debug("- Returned %s records", len(response["data"]))
         for row in response["data"]:
-            for key, val in row.items():
-                data[key].append(val)
+            if unpack_key:
+                for nested_row in row[unpack_key]:
+                    for key, val in row.items():
+                        if key == unpack_key:
+                            continue
+                        data[key].append(val)
+                    for key, val in nested_row.items():
+                        data[key].append(val)
+            else:
+                for key, val in row.items():
+                    data[key].append(val)
 
-        if response["pagination"]["next"]:
+        if "pagination" in response and response["pagination"]["next"]:
             url = response["pagination"]["next"]
         else:
             break
@@ -370,6 +382,28 @@ def deaths_phe(key="name"):
     return data
 
 
+def deaths_by_age():
+    data = pd.DataFrame(
+        phe_fetch_json(
+            filters={"areaType": "nation"},
+            fields=[
+                "areaName",
+                "date",
+                "newDeaths28DaysByDeathDateAgeDemographics",
+            ],
+            unpack_key="newDeaths28DaysByDeathDateAgeDemographics",
+        )
+    ).rename(columns={"areaName": "location"})
+    data["date"] = pd.to_datetime(data["date"])
+    data = data.set_index(["location", "date", "age"]).sort_index()
+
+    data = xr.Dataset.from_dataframe(data)
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "Public Health England"
+    data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
+    return data
+
+
 def fetch_json_ld(url):
     res = requests.get(url)
     res.raise_for_status()
@@ -541,6 +575,37 @@ def vaccinations():
     data = xr.Dataset.from_dataframe(data.sort_index())
 
     data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "Public Health England"
+    data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
+    return data
+
+
+def vaccination_uptake_by_area():
+    data = pd.DataFrame(
+        phe_fetch_json(
+            filters={"areaType": "ltla"},
+            latest_by="cumVaccinationFirstDoseUptakeByVaccinationDatePercentage",
+            fields=[
+                "areaCode",
+                "date",
+                "cumVaccinationFirstDoseUptakeByVaccinationDatePercentage",
+                "cumVaccinationSecondDoseUptakeByVaccinationDatePercentage",
+            ],
+        )
+    ).rename(
+        columns={
+            "cumVaccinationFirstDoseUptakeByVaccinationDatePercentage": "first",
+            "cumVaccinationSecondDoseUptakeByVaccinationDatePercentage": "second",
+            "areaCode": "gss_code",
+        }
+    )
+    data["date"] = pd.to_datetime(data["date"])
+    data_date = data["date"][0]
+    data = data.drop(columns=["date"]).set_index("gss_code")
+
+    data = xr.Dataset.from_dataframe(data.sort_index())
+
+    data.attrs["date"] = data_date
     data.attrs["source"] = "Public Health England"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
