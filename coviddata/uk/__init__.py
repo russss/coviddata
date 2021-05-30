@@ -609,3 +609,36 @@ def vaccination_uptake_by_area():
     data.attrs["source"] = "Public Health England"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
+
+
+def vaccination_uptake_by_area_date():
+    data = pd.DataFrame(
+        phe_fetch_json(
+            filters={"areaType": "ltla"},
+            fields=[
+                "areaCode",
+                "date",
+                "cumVaccinationFirstDoseUptakeByVaccinationDatePercentage",
+                "cumVaccinationSecondDoseUptakeByVaccinationDatePercentage",
+            ],
+        )
+    ).rename(
+        columns={
+            "cumVaccinationFirstDoseUptakeByVaccinationDatePercentage": "first",
+            "cumVaccinationSecondDoseUptakeByVaccinationDatePercentage": "second",
+            "areaCode": "gss_code",
+        }
+    )
+    data["date"] = pd.to_datetime(data["date"])
+
+    # In some cases there seem to be duplicate rows here.
+    # Fill forward and then drop the duplicates should do it.
+    data = data.fillna(method='ffill').set_index(["date", "gss_code"])
+    data = data[~data.index.duplicated()]
+
+    data = xr.Dataset.from_dataframe(data.sort_index())
+
+    data.attrs["date"] = max_date(data)
+    data.attrs["source"] = "Public Health England"
+    data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
+    return data
