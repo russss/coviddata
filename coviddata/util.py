@@ -22,7 +22,7 @@ def read_csv(*args, **kwargs):
     while True:
         try:
             return pd.read_csv(*args, **kwargs)
-        except HTTPException as e:
+        except (HTTPException, ConnectionError) as e:
             if retries == 0:
                 raise
             retries -= 1
