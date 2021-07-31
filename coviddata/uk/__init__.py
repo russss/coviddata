@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 def phe_query(filters={}, fields=[], fmt="csv", page=None, latest_by=None):
-    """ Helper to generate a query for the new PHE data API """
+    """Helper to generate a query for the v1 PHE data API"""
 
     params = {
         "filters": ";".join(f"{k}={v}" for k, v in filters.items()),
@@ -36,9 +36,18 @@ def phe_query(filters={}, fields=[], fmt="csv", page=None, latest_by=None):
     return "/v1/data?" + urlencode(params)
 
 
+def phe_query_v2(metric=None, filters={}, fmt="csv"):
+    """Helper to generate a query for the v2 PHE data API"""
+    assert metric is not None
+    params = filters
+    params["format"] = fmt
+    params["metric"] = metric
+    return "/v2/data?" + urlencode(params)
+
+
 def phe_fetch_url(path):
-    """Fetch a URL from the coronavirus.data.gov.uk API with elaborate retry
-    handling because they can't operate a functional website.
+    """
+    Fetch a URL from the coronavirus.data.gov.uk API with elaborate retry handling.
     """
     url = PHE_ENDPOINT + path
 
@@ -70,7 +79,7 @@ def phe_fetch_url(path):
 
 
 def phe_fetch_csv(filters, fields):
-    """ Fetch data from coronavirus.data.gov.uk as a CSV."""
+    """Fetch data from coronavirus.data.gov.uk as a CSV."""
     page = 1
     result_data = ""
 
@@ -93,7 +102,7 @@ def phe_fetch_csv(filters, fields):
 
 
 def phe_fetch_json(filters, fields, unpack_key=None, latest_by=None):
-    """ Fetch data from coronavirus.data.gov.uk as JSON, returning a Pandas-compatible dict-of-lists."""
+    """Fetch data from coronavirus.data.gov.uk as JSON, returning a Pandas-compatible dict-of-lists."""
     start = time.time()
     log.debug("JSON Query: filters: %s  fields: %s", filters, fields)
     data = defaultdict(list)
@@ -122,7 +131,7 @@ def phe_fetch_json(filters, fields, unpack_key=None, latest_by=None):
         else:
             break
 
-    log.debug("Query complete, %s records in %.3f secs", len(data), time.time() - start)
+    log.debug("Query complete in %.3f secs", time.time() - start)
     return data
 
 
@@ -179,7 +188,7 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
 
 
 def tests_phe():
-    """ Data on number of tests carried out from Public Health England. """
+    """Data on number of tests carried out from Public Health England."""
     fields = [
         "date",
         "plannedCapacityByPublishDate",
@@ -278,7 +287,7 @@ def deaths_nhs():
         url = (
             "https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/"
             f"{today.year}/{today.month:02}/"
-            f"COVID-19-total-announced-deaths-{today.day}-{today.strftime('%B-%Y')}.xlsx"
+            f"COVID-19-daily-announced-deaths-{today.day:02}-{today.strftime('%B-%Y')}.xlsx"
         )
         if today == date(2020, 7, 11):
             url = url.replace(".xlsx", "-1.xlsx")
@@ -324,7 +333,7 @@ def deaths_nhs():
     return data
 
 
-def hospitalisations_phe(key="name"):
+def hospitalisations_phe(key="name", area_type="nhsregion"):
     if key == "name":
         loc_field = "areaName"
         loc_name = "location"
@@ -334,7 +343,7 @@ def hospitalisations_phe(key="name"):
 
     data = pd.DataFrame(
         phe_fetch_json(
-            filters={"areaType": "nhsregion"},
+            filters={"areaType": area_type},
             fields=[loc_field, "date", "cumAdmissions"],
         )
     )
@@ -448,49 +457,23 @@ def infections_ons():
     return df
 
 
-def cases_by_age(area_type="ltla", key="gss_code", var="absolute"):
-    url = (
-        "https://coronavirus.data.gov.uk/downloads/demographic/cases/"
-        "specimenDate_ageDemographic-stacked.csv"
+def cases_by_age():
+    data = read_csv(
+        PHE_ENDPOINT
+        + phe_query_v2(
+            metric="newCasesBySpecimenDateAgeDemographics",
+            filters={"areaType": "nation", "areaCode": "E92000001"},
+        ),
+        parse_dates=["date"],
     )
-    data = read_csv(url, parse_dates=["date"])
 
-    # 0-59 and 60+ overlap other age ranges, so we're not interested
-    data = data[
-        (data["areaType"] == area_type)
-        & (data["age"] != "0_59")
-        & (data["age"] != "60+")
-    ]
-    data = data.drop(columns=["areaType"])
+    data = data[(data["age"] != "00_59") & (data["age"] != "60+")]
+    data = data.drop(columns=["areaType", "areaName", "areaCode"])
     data["age"] = data["age"].str.replace(
-        r"([0-9]+)_([0-9]+)", lambda r: r.group(1) + "-" + r.group(2)
+        r"[0]?([0-9]+)_[0]?([0-9]+)", lambda r: r.group(1) + "-" + r.group(2)
     )
 
-    if var == "absolute":
-        data = data.drop(
-            columns=[
-                "newCasesBySpecimenDateRollingSum",
-                "newCasesBySpecimenDateRollingRate",
-            ]
-        ).rename(columns={"newCasesBySpecimenDate": "cases"})
-    elif var == "rate":
-        data = data.drop(
-            columns=[
-                "newCasesBySpecimenDateRollingSum",
-                "newCasesBySpecimenDate",
-            ]
-        ).rename(columns={"newCasesBySpecimenDateRollingRate": "rate"})
-
-    if key == "gss_code":
-        index_cols = ["gss_code"]
-        data = data.drop(columns=["areaName"]).rename(columns={"areaCode": "gss_code"})
-    elif key == "name":
-        index_cols = ["name"]
-        data = data.drop(columns=["areaCode"]).rename(columns={"areaName": "name"})
-
-    index_cols += ["date", "age"]
-
-    data = data.set_index(index_cols)
+    data = data.set_index(["date", "age"])
     data = xr.Dataset.from_dataframe(data)
 
     data.attrs["date"] = max_date(data)
@@ -500,7 +483,7 @@ def cases_by_age(area_type="ltla", key="gss_code", var="absolute"):
 
 
 def test_positivity(area_type="ltla", key="gss"):
-    """ 7-day test positivity """
+    """7-day test positivity"""
     if key == "name":
         loc_field = "areaName"
         loc_name = "location"
@@ -633,7 +616,7 @@ def vaccination_uptake_by_area_date():
 
     # In some cases there seem to be duplicate rows here.
     # Fill forward and then drop the duplicates should do it.
-    data = data.fillna(method='ffill').set_index(["date", "gss_code"])
+    data = data.fillna(method="ffill").set_index(["date", "gss_code"])
     data = data[~data.index.duplicated()]
 
     data = xr.Dataset.from_dataframe(data.sort_index())
