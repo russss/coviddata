@@ -18,6 +18,7 @@ def read_excel(*args, **kwargs):
 
 
 def read_csv(*args, **kwargs):
+    log.info("Fetching CSV: %s", args[0])
     retries = 3
     while True:
         try:
@@ -26,9 +27,7 @@ def read_csv(*args, **kwargs):
             if retries == 0:
                 raise
             retries -= 1
-            log.warn(
-                "Error %s reading CSV, retrying %s more times", e, retries
-            )
+            log.warn("Error %s reading CSV, retrying %s more times", e, retries)
             sleep(2)
 
 

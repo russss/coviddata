@@ -155,26 +155,29 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
     if key == "name":
         loc_field = "areaName"
         loc_name = "location"
+        drop_columns = ["areaCode", "areaType"]
     elif key == "gss_code":
         loc_field = "areaCode"
         loc_name = "gss_code"
+        drop_columns = ["areaName", "areaType"]
 
     if basis == "occurrence":
         cases_field = "cumCasesBySpecimenDate"
     else:
         cases_field = "cumCasesByPublishDate"
 
-    data = pd.DataFrame(
-        phe_fetch_json(
+    data = read_csv(
+        PHE_ENDPOINT
+        + phe_query_v2(
+            metric=cases_field,
             filters={"areaType": _fix_by(by)},
-            fields=[loc_field, "date", cases_field],
-        )
+        ),
+        parse_dates=["date"],
     )
 
-    data["date"] = pd.to_datetime(data["date"])
-
     data = (
-        data.rename(columns={cases_field: "cases", loc_field: loc_name})
+        data.drop(columns=drop_columns)
+        .rename(columns={cases_field: "cases", loc_field: loc_name})
         .set_index(["date", loc_name])
         .sort_index()
     )
@@ -487,21 +490,24 @@ def test_positivity(area_type="ltla", key="gss"):
     if key == "name":
         loc_field = "areaName"
         loc_name = "location"
+        drop_columns = ["areaCode", "areaType"]
     elif key == "gss":
         loc_field = "areaCode"
         loc_name = "gss_code"
+        drop_columns = ["areaName", "areaType"]
 
-    data = pd.DataFrame(
-        phe_fetch_json(
+    data = read_csv(
+        PHE_ENDPOINT
+        + phe_query_v2(
+            metric="uniqueCasePositivityBySpecimenDateRollingSum",
             filters={"areaType": area_type},
-            fields=[loc_field, "date", "uniqueCasePositivityBySpecimenDateRollingSum"],
-        )
+        ),
+        parse_dates=["date"],
     )
 
-    data["date"] = pd.to_datetime(data["date"])
-
     data = (
-        data.rename(
+        data.drop(columns=drop_columns)
+        .rename(
             columns={
                 loc_field: loc_name,
                 "uniqueCasePositivityBySpecimenDateRollingSum": "positivity",
