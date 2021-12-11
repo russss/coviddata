@@ -41,7 +41,14 @@ def phe_query_v2(metric=None, filters={}, fmt="csv"):
     assert metric is not None
     params = filters
     params["format"] = fmt
-    params["metric"] = metric
+    params = list(params.items())
+
+    if type(metric) == str:
+        params.append(("metric", metric))
+    else:
+        for m in metric:
+            params.append(("metric", m))
+
     return "/v2/data?" + urlencode(params)
 
 
@@ -140,7 +147,7 @@ def _fix_by(by):
 
 
 def cases_phe(by="nation", key="name", basis="occurrence"):
-    """Cases data from Public Health England.
+    """Cases data from UKHSA.
     This is the data used by coronavirus.data.gov.uk.
 
     The `by` variable can be "nation", "region", or "ltla".
@@ -184,14 +191,14 @@ def cases_phe(by="nation", key="name", basis="occurrence"):
 
     xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
-    xdata.attrs["source"] = "Public Health England"
+    xdata.attrs["source"] = "UKHSA"
     xdata.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
 
     return xdata
 
 
 def tests_phe():
-    """Data on number of tests carried out from Public Health England."""
+    """Data on number of tests carried out from UKHSA."""
     fields = [
         "date",
         "plannedCapacityByPublishDate",
@@ -210,7 +217,7 @@ def tests_phe():
 
     xdata = xr.Dataset.from_dataframe(data)
     xdata.attrs["date"] = max_date(xdata)
-    xdata.attrs["source"] = "Public Health England"
+    xdata.attrs["source"] = "UKHSA"
     xdata.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
 
     return xdata
@@ -360,7 +367,7 @@ def hospitalisations_phe(key="name", area_type="nhsregion"):
     )
     data = xr.Dataset.from_dataframe(data)
     data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
 
     data = data.ffill("date")  # Fill-forward missing data
@@ -387,7 +394,7 @@ def deaths_phe(key="name"):
     )
     data = xr.Dataset.from_dataframe(data)
     data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
 
     data = data.ffill("date")  # Fill-forward missing data
@@ -411,7 +418,7 @@ def deaths_by_age():
 
     data = xr.Dataset.from_dataframe(data)
     data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
 
@@ -480,7 +487,7 @@ def cases_by_age():
     data = xr.Dataset.from_dataframe(data)
 
     data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
 
@@ -520,7 +527,7 @@ def test_positivity(area_type="ltla", key="gss"):
     data = xr.Dataset.from_dataframe(data)
 
     data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
 
@@ -564,7 +571,7 @@ def vaccinations():
     data = xr.Dataset.from_dataframe(data.sort_index())
 
     data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
 
@@ -595,29 +602,33 @@ def vaccination_uptake_by_area():
     data = xr.Dataset.from_dataframe(data.sort_index())
 
     data.attrs["date"] = data_date
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
 
 
-def vaccination_uptake_by_area_date():
-    data = pd.DataFrame(
-        phe_fetch_json(
-            filters={"areaType": "ltla"},
-            fields=[
-                "areaCode",
-                "date",
+def vaccination_uptake_by_area_date(by="ltla"):
+    data = read_csv(
+        PHE_ENDPOINT
+        + phe_query_v2(
+            metric=[
                 "cumVaccinationFirstDoseUptakeByVaccinationDatePercentage",
                 "cumVaccinationSecondDoseUptakeByVaccinationDatePercentage",
+                "cumVaccinationThirdInjectionUptakeByVaccinationDatePercentage"
             ],
-        )
-    ).rename(
+            filters={"areaType": by},
+        ),
+        parse_dates=["date"],
+    )
+
+    data = data.rename(
         columns={
             "cumVaccinationFirstDoseUptakeByVaccinationDatePercentage": "first",
             "cumVaccinationSecondDoseUptakeByVaccinationDatePercentage": "second",
+            "cumVaccinationThirdInjectionUptakeByVaccinationDatePercentage": "third",
             "areaCode": "gss_code",
         }
-    )
+    ).drop(columns=["areaType", "areaName"])
     data["date"] = pd.to_datetime(data["date"])
 
     # In some cases there seem to be duplicate rows here.
@@ -625,9 +636,9 @@ def vaccination_uptake_by_area_date():
     data = data.fillna(method="ffill").set_index(["date", "gss_code"])
     data = data[~data.index.duplicated()]
 
-    data = xr.Dataset.from_dataframe(data.sort_index())
+    data = xr.Dataset.from_dataframe(data.sort_index()).dropna('date')
 
     data.attrs["date"] = max_date(data)
-    data.attrs["source"] = "Public Health England"
+    data.attrs["source"] = "UKHSA"
     data.attrs["source_url"] = "https://coronavirus.data.gov.uk/"
     return data
