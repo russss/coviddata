@@ -536,37 +536,31 @@ def vaccinations():
     """Fetch daily data (by date of report) on vaccinations.
     This dataset also includes some weekly date-of-vaccination
     data points from before the daily dataset started."""
-    data = (
-        pd.DataFrame(
-            phe_fetch_json(
-                filters={"areaType": "overview"},
-                fields=[
-                    "areaName",
-                    "date",
-                    "cumPeopleVaccinatedFirstDoseByPublishDate",
-                    "cumPeopleVaccinatedSecondDoseByPublishDate",
-                ],
-            )
-        )
-        .rename(
-            columns={
-                "cumPeopleVaccinatedFirstDoseByPublishDate": "first_dose",
-                "cumPeopleVaccinatedSecondDoseByPublishDate": "second_dose",
-                "areaName": "location",
-            }
-        )
-        .drop(columns=["location"])
-    )
+    data = read_csv(
+        PHE_ENDPOINT
+        + phe_query_v2(
+            metric=[
+                "cumPeopleVaccinatedFirstDoseByPublishDate",
+                "cumPeopleVaccinatedSecondDoseByPublishDate",
+                "cumPeopleVaccinatedThirdInjectionByPublishDate"
+            ],
+            filters={"areaType": "overview"},
+        ),
+        parse_dates=["date"],
+    ).drop(columns=["areaCode", "areaName", "areaType"]).rename(columns={
+        "cumPeopleVaccinatedFirstDoseByPublishDate": "first_dose",
+        "cumPeopleVaccinatedSecondDoseByPublishDate": "second_dose",
+        "cumPeopleVaccinatedThirdInjectionByPublishDate": "third_dose"
+    }).fillna(0)
 
-    data["date"] = pd.to_datetime(data["date"])
     data = data.set_index("date")
 
     # Insert values from weekly numbers before daily stats were available.
-    data.loc[pd.to_datetime("2020-12-6")] = [0, 0]
-    data.loc[pd.to_datetime("2020-12-7")] = [0, 0]
-    data.loc[pd.to_datetime("2020-12-20")] = [663809, 0]
-    data.loc[pd.to_datetime("2020-12-27")] = [985479, 0]
-    data.loc[pd.to_datetime("2021-01-03")] = [1344152, 20977]
+    data.loc[pd.to_datetime("2020-12-6")] = [0, 0, 0]
+    data.loc[pd.to_datetime("2020-12-7")] = [0, 0, 0]
+    data.loc[pd.to_datetime("2020-12-20")] = [663809, 0, 0]
+    data.loc[pd.to_datetime("2020-12-27")] = [985479, 0, 0]
+    data.loc[pd.to_datetime("2021-01-03")] = [1344152, 20977, 0]
 
     data = xr.Dataset.from_dataframe(data.sort_index())
 
